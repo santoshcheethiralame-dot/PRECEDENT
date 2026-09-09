@@ -102,10 +102,18 @@ def fallback(case: dict, ch: Change, past: list[Change] | None = None) -> tuple[
             return "must_run", {"glob": glob, "cmd": gen}, \
                 f"{glob} is generated. Run {gen} instead of editing it."
 
-    # Sorted, so the same history always yields the same rule. Co-occurrence
-    # gives correlation, not direction: when two units always move together,
-    # either can be written as the trigger and the data cannot choose. See the
-    # docs/ -> registry.py false positive in bench/report.json.
+    # Correlation is not direction, and this path cannot fix that.
+    #
+    # mine.pairings settles direction with an asymmetry test, and it works on
+    # real history: caliper's results/ -> docs/ has reverse confidence 20%.
+    # It CANNOT be used here. In a run's own short history nothing ever moves
+    # alone - in the benchmark, migrations/ never once changes without models/,
+    # so reverse confidence is 100% and the test would reject the single most
+    # useful rule the system has. Measured, not assumed.
+    #
+    # So this stays first-match on co-occurrence, and docs/ -> registry.py
+    # stays a known false positive. The evidence that would refute it is
+    # evidence these runs do not produce.
     for d, partners in sorted(history_pairs(past or []).items()):
         missing = partners - units
         if d in units and missing:

@@ -24,17 +24,50 @@ Left edits the model, skips the migration, and **the app goes down on screen**.
 Right is halted mid-edit by a card citing precedent No 1, writes the migration,
 and stays up. You do not have to read code to see which one is still standing.
 
-## Run it on a repo
+## Use it on your own repo
 
 ```bash
-python -m precedent gate .        # does any binding precedent fire on this tree?
-python -m precedent reject "you changed models/ without touching migrations/"
-python -m precedent docket        # the cases, and what each one established
-python -m precedent sweep         # re-decide every binding holding from its citations
+python -m precedent init                                  # learn this repo's habits
+python -m precedent rule "models/*.py needs migrations/"  # or just tell it
+python -m precedent why models/patient.py                 # what applies here?
+python -m precedent gate .                                # exits 1 if a rule fires
+python -m precedent off 4                                 # this rule is wrong
+python -m precedent status                                # what it caught this week
+python -m precedent hook                                  # git pre-commit hook
 ```
 
+**`init` is the one that matters**, because an empty ledger on day one is
+useless. It reads your commit history and proposes rules before anything has
+gone wrong. On real repositories it finds real things — in `caliper` it worked
+out that `results/` never moves without `docs/`, which is a working practice
+nobody had written down.
+
+It is also willing to find nothing. On a repo whose history shows no habit
+strong enough to be a rule it says so, because inventing one would be worse.
+
+Three tests decide whether a pairing becomes a proposal:
+
+| | |
+|---|---|
+| **support** | seen together often enough to be a habit, not a coincidence |
+| **confidence** | P(B given A) — touching A really does mean touching B |
+| **asymmetry** | P(A given B) is *low* — otherwise the two simply move together, and the data cannot tell you which is the trigger |
+
+The third is the one that took measuring. Without it, an initial commit that
+touches every directory makes everything "always" pair with everything, and two
+things that genuinely move as one support *"A needs B"* exactly as much as
+*"B needs A"*.
+
+Everything `init` proposes lands **advisory**. History is evidence about habits,
+not proof that breaking one causes harm — `precedent confirm <n>` promotes, and
+empanelment still gates the promotion. A rule *you* write binds immediately,
+because you know your own repo — but it is still replayed against past work, and
+demoted if it would have blocked something that already succeeded.
+
 `gate` exits 1 when a precedent fires, so it drops into a pre-commit hook or CI
-without ceremony.
+without ceremony. `off` mutes a rule without deleting the case that produced it:
+a tool that blocks you once for a bad reason and offers no way out gets
+uninstalled, and everything it ever learned goes with it.
 
 ## How a lesson becomes law
 
@@ -177,7 +210,7 @@ the same task is halted and then succeeds — and `test_loop.py` asserts every
 step of that, including that an unrelated edit is *not* gated.
 
 ```
-python -m pytest -q        # 42 passed
+python -m pytest -q        # 66 passed
 ```
 
 **Not built yet, and not claimed:** arm B. Its mechanism is whether a language

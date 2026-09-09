@@ -21,6 +21,14 @@ def cmd_gate(a) -> int:
     ch = Change.from_git(Path(repo))
     from . import transfer
     verdicts = gate.evaluate(led, repo, ch, borrowed=transfer.borrowed(repo))
+    if verdicts:
+        # Record that it fired. Without this a person who only ever uses the CLI
+        # sees "0 mistakes stopped" forever, which is both wrong and the exact
+        # reason they would stop bothering.
+        run_id = led.open_run(repo, "gate", arm="cli")
+        led.close_run(run_id, "blocked")
+        for v in verdicts:
+            led.cite(run_id, v.holding_id, "blocked")
     if a.json:
         print(json.dumps([v.__dict__ for v in verdicts], indent=2))
     elif verdicts:
@@ -154,6 +162,9 @@ def main(argv=None) -> int:
     w.add_argument("--port", type=int, default=8850)
     w.add_argument("--ledger", default=None)
     w.set_defaults(fn=lambda a: __import__("precedent.board", fromlist=["main"]).main(a.port, a.ledger))
+
+    from .cli_verbs import register
+    register(sub)
 
     a = p.parse_args(argv)
     return a.fn(a)

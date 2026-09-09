@@ -1,0 +1,227 @@
+"""The commands a person actually types.
+
+Everything here is deliberately small. A solo developer will not read a manual,
+will not run a daemon, and will uninstall anything that blocks them once for a
+bad reason. So: learn from what is already here, let them write a rule in one
+sentence, tell them why they were stopped, and let them switch a rule off.
+"""
+from __future__ import annotations
+
+import json
+import re
+import time
+from pathlib import Path
+
+from .change import Change
+from .db import Ledger, ledger_path
+from . import empanel, mine, templates
+
+# ---------------------------------------------------------------- init --------
+
+
+def init(repo: Path, limit: int = 600) -> list[dict]:
+    """Everything this repository can tell us before anything has gone wrong.
+
+    Proposals land ADVISORY. Mined history is evidence about habits, not proof
+    that breaking one causes harm, and the difference matters: advisory rules
+    inform the agent, binding rules stop it.
+    """
+    repo = Path(repo).resolve()
+    led = Ledger(ledger_path(repo))
+    existing = {(h["template"], json.dumps(h["params"], sort_keys=True))
+                for h in led.holdings(repo=str(repo))}
+
+    out = []
+    for r in mine.propose(repo, limit):
+        key = (r["template"], json.dumps(r["params"], sort_keys=True))
+        if key in existing:
+            continue
+        run_id = led.open_run(str(repo), "precedent init", arm="init")
+        led.close_run(run_id, "pass")
+        case_id = led.file_case(run_id, str(repo), "mined", "low", r["says"], [],
+                                json.dumps(r["evidence"]))
+        hid = led.establish(case_id, str(repo), r["template"], r["params"], r["says"],
+                            status="persuasive", empanel={"mined": r["evidence"]})
+        out.append({**r, "id": hid})
+    led.close()
+    return out
+
+
+def confirm(repo: Path, ids: list[int]) -> list[dict]:
+    """Promote a mined rule to binding, after it survives the usual replay."""
+    repo = Path(repo).resolve()
+    led = Ledger(ledger_path(repo))
+    done = []
+    for hid in ids:
+        h = next((x for x in led.holdings() if x["id"] == hid), None)
+        if not h or h["template"] not in templates.TEMPLATES:
+            continue
+        origin = Change(repo=repo, touched=[], commands=None)
+        _, receipt = empanel.empanel(led, str(repo), h["template"], h["params"], origin)
+        # A mined rule has no failing case of its own to fire on, so the
+        # fire-on-origin half of empanelment does not apply. What still applies,
+        # and is the half that matters, is that it must not fire on past work.
+        ok = not receipt.get("false_ids")
+        led.set_status(hid, "binding" if ok else "persuasive",
+                       {**receipt, "mined": True, "fire": "n/a (no failing case)"})
+        done.append({"id": hid, "status": "binding" if ok else "persuasive",
+                     "receipt": receipt})
+    led.close()
+    return done
+
+
+# ---------------------------------------------------------------- rule --------
+
+FORMS = (
+    (re.compile(r"^(?P<a>[^\s]+)\s+needs\s+(?P<b>[^\s]+)$", re.I),
+     lambda m: ("co_change", {"trigger": m["a"], "required": _glob(m["b"])},
+                f"Changing {m['a']} means changing {m['b']} too.")),
+    (re.compile(r"^never\s+(?:touch|edit)\s+(?P<g>[^\s]+)$", re.I),
+     lambda m: ("forbidden_edit", {"glob": m["g"]}, f"Never edit {m['g']}.")),
+    (re.compile(r"^after\s+(?P<g>[^\s]+)\s+run\s+(?P<cmd>.+)$", re.I),
+     lambda m: ("required_command", {"glob": m["g"], "cmd": m["cmd"].strip()},
+                f"After changing {m['g']}, `{m['cmd'].strip()}` has to pass.")),
+)
+
+HELP = "\n".join([
+    '  precedent rule "models/*.py needs migrations/"',
+    '  precedent rule "never touch package-lock.json"',
+    '  precedent rule "after src/*.py run pytest -q"',
+])
+
+
+def _glob(token: str) -> str:
+    return f"{token.rstrip('/')}/**" if token.endswith("/") else token
+
+
+def parse(sentence: str):
+    for pattern, build in FORMS:
+        m = pattern.match(sentence.strip())
+        if m:
+            return build(m)
+    return None
+
+
+def rule(repo: Path, sentence: str) -> dict | None:
+    """A rule you wrote yourself.
+
+    You know your own repository, so this needs no failure first. It is still
+    replayed against past work - a rule that would have blocked something that
+    already succeeded is worth catching before it bites, whoever wrote it.
+    """
+    parsed = parse(sentence)
+    if not parsed:
+        return None
+    template, params, says = parsed
+    repo = Path(repo).resolve()
+    led = Ledger(ledger_path(repo))
+
+    run_id = led.open_run(str(repo), f"taught: {sentence}", arm="taught")
+    led.close_run(run_id, "fail")
+    case_id = led.file_case(run_id, str(repo), "taught", "high", sentence, [],
+                            json.dumps({"sentence": sentence}))
+    origin = Change(repo=repo, touched=[], commands=None)
+    _, receipt = empanel.empanel(led, str(repo), template, params, origin)
+    ok = not receipt.get("false_ids")
+    status_ = "binding" if ok else "persuasive"
+    hid = led.establish(case_id, str(repo), template, params, says, status=status_,
+                        empanel={**receipt, "taught": True, "fire": "n/a (you wrote it)"})
+    led.close()
+    return {"id": hid, "template": template, "params": params, "says": says,
+            "status": status_, "receipt": receipt}
+
+
+# ----------------------------------------------------------------- why --------
+
+
+def why(repo: Path, path: str) -> list[dict]:
+    """Which rules apply to this file, and where each came from."""
+    repo = Path(repo).resolve()
+    led = Ledger(ledger_path(repo))
+    rel = path.replace("\\", "/")
+    try:
+        rel = Path(path).resolve().relative_to(repo).as_posix()
+    except (ValueError, OSError):
+        pass
+
+    out = []
+    for h in led.holdings(repo=str(repo)):
+        p = h["params"]
+        globs = [g for g in (p.get("trigger"), p.get("glob"), p.get("required")) if g]
+        if any(templates._hits([rel], g) for g in globs):
+            case = led.case(h["case_id"]) or {}
+            out.append({**h, "source": case.get("source", "?"),
+                        "reason": case.get("summary", "")})
+    led.close()
+    return out
+
+
+# ------------------------------------------------------------- off / on -------
+
+
+def mute(repo: Path, hid: int, on: bool = False) -> dict | None:
+    """Switch a rule off without deleting the case that produced it.
+
+    The escape hatch matters more than it looks: a tool that blocks you once for
+    a bad reason and gives you no way out gets uninstalled, and every rule it
+    ever learned goes with it.
+    """
+    repo = Path(repo).resolve()
+    led = Ledger(ledger_path(repo))
+    h = next((x for x in led.holdings() if x["id"] == hid), None)
+    if not h:
+        led.close()
+        return None
+    if on:
+        back = h["empanel"].get("muted_from", "persuasive")
+        led.set_status(hid, back,
+                       {k: v for k, v in h["empanel"].items() if k != "muted_from"})
+        result = {"id": hid, "status": back}
+    else:
+        led.set_status(hid, "muted", {**h["empanel"], "muted_from": h["status"]})
+        result = {"id": hid, "status": "muted", "was": h["status"]}
+    led.close()
+    return result
+
+
+# ---------------------------------------------------------------- status ------
+
+
+def status(repo: Path, days: int = 7) -> dict:
+    repo = Path(repo).resolve()
+    led = Ledger(ledger_path(repo))
+    since = time.time() - days * 86400
+    holdings = led.holdings(repo=str(repo))
+    stopped, overridden = 0, 0
+    for h in holdings:
+        for c in led.citations(h["id"]):
+            if c["at"] < since:
+                continue
+            if c["outcome"] == "blocked" or c["outcome"].startswith("complied"):
+                stopped += 1
+            elif c["outcome"].startswith("overridden"):
+                overridden += 1
+    counts = led.counts(str(repo))
+    led.close()
+    return {"days": days, "stopped": stopped, "overridden": overridden,
+            "binding": counts["binding"], "advisory": counts["persuasive"],
+            "muted": sum(1 for h in holdings if h["status"] == "muted"),
+            "overruled": counts["overruled"], "cases": counts["cases"]}
+
+
+# ----------------------------------------------------------------- hook -------
+
+HOOK = "#!/bin/sh\n# installed by `precedent hook`\nexec python -m precedent gate .\n"
+
+
+def hook(repo: Path) -> Path | None:
+    hooks = Path(repo).resolve() / ".git" / "hooks"
+    if not hooks.is_dir():
+        return None
+    target = hooks / "pre-commit"
+    target.write_text(HOOK, encoding="utf-8")
+    try:
+        target.chmod(0o755)
+    except OSError:
+        pass
+    return target
