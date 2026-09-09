@@ -1,0 +1,71 @@
+"""What the agent did to the working tree, in the only shape a check needs."""
+from __future__ import annotations
+
+import subprocess
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+IGNORED = (".precedent/", "__pycache__/", ".git/")
+
+
+def _ours(path: str) -> bool:
+    return any(seg in path for seg in IGNORED)
+
+
+def _git(repo: Path, *args: str) -> str:
+    out = subprocess.run(["git", *args], cwd=repo, capture_output=True, text=True)
+    return out.stdout
+
+
+@dataclass
+class Change:
+    repo: Path
+    touched: list[str] = field(default_factory=list)          # repo-relative, forward slashes
+    added: dict[str, list[str]] = field(default_factory=dict)  # path -> added lines
+
+    def text(self, path: str) -> str:
+        p = self.repo / path
+        try:
+            return p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return ""
+
+    def run(self, cmd: str) -> int:
+        return subprocess.run(cmd, cwd=self.repo, shell=True,
+                              capture_output=True, text=True).returncode
+
+    @classmethod
+    def from_git(cls, repo: Path) -> "Change":
+        """Uncommitted work: staged, unstaged, and untracked."""
+        repo = Path(repo)
+        names = set()
+        for args in (("diff", "--name-only", "HEAD"), ("diff", "--name-only"),
+                     ("ls-files", "--others", "--exclude-standard")):
+            names.update(x for x in _git(repo, *args).splitlines() if x.strip())
+        touched = sorted(n for n in (x.replace("\\", "/") for x in names) if not _ours(n))
+
+        added: dict[str, list[str]] = {}
+        current = None
+        for line in _git(repo, "diff", "HEAD", "-U0").splitlines():
+            if line.startswith("+++ b/"):
+                current = line[6:].replace("\\", "/")
+                if _ours(current):
+                    current = None
+                    continue
+                added.setdefault(current, [])
+            elif line.startswith("+") and not line.startswith("+++") and current:
+                added[current].append(line[1:])
+        # untracked files are entirely "added"
+        tracked = {x for x in _git(repo, "ls-files").splitlines()}
+        for t in touched:
+            if t not in tracked and t not in added:
+                added[t] = (repo / t).read_text(encoding="utf-8", errors="replace").splitlines() \
+                    if (repo / t).is_file() else []
+        return cls(repo=repo, touched=touched, added=added)
+
+    @classmethod
+    def from_edits(cls, repo: Path, edits: dict[str, str]) -> "Change":
+        """Used by the harness, which knows exactly what it wrote."""
+        return cls(repo=Path(repo), touched=sorted(edits),
+                   added={k: v.splitlines() for k, v in edits.items()})

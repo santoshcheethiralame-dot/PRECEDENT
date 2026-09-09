@@ -1,0 +1,55 @@
+"""The terminal is a design surface. Two colours, one box, no emoji."""
+from __future__ import annotations
+
+import os
+import sys
+import time
+
+W = 74
+VER, AMB, GRN, DIM, OFF, BOLD = "\033[38;5;203m", "\033[38;5;214m", "\033[38;5;114m", "\033[38;5;242m", "\033[0m", "\033[1m"
+
+
+def _colour() -> bool:
+    return sys.stdout.isatty() and os.environ.get("NO_COLOR") is None
+
+
+def _c(s: str, code: str) -> str:
+    return f"{code}{s}{OFF}" if _colour() else s
+
+
+def _row(text: str, code: str = "", pad: int = 2) -> str:
+    body = " " * pad + text
+    fill = " " * max(0, W - 2 - len(body))
+    return f"{_c('|', VER)}{_c(body, code) if code else body}{fill}{_c('|', VER)}"
+
+
+def halt_card(v, number: int | None = None) -> str:
+    n = number if number is not None else v.holding_id
+    when = time.strftime("%d %b %Y", time.localtime(v.established)).upper()
+    e = v.empanel or {}
+    receipt = f"empanelled {e.get('fire','?')} fire  {e.get('false','?')} false" \
+              f"    cited {v.cited}    overruled never"
+    top = _c("+" + "-" * (W - 2) + "+", VER)
+    sep = _c("+" + "-" * (W - 2) + "+", VER)
+    return "\n".join([
+        top,
+        _row(f"HALT   BINDING PRECEDENT No {n}   ESTABLISHED {when}", VER),
+        sep,
+        _row(v.says, BOLD),
+        _row(""),
+        _row(v.rule, AMB),
+        _row(v.reason, DIM),
+        _row(""),
+        _row(receipt, DIM),
+        top,
+    ])
+
+
+def clear_line() -> str:
+    return _c("no binding precedent fires on this working tree.", GRN)
+
+
+def docket_line(h: dict, case: dict) -> str:
+    stamp = {"binding": _c("BINDING  ", AMB), "persuasive": _c("advisory ", DIM),
+             "overruled": _c("OVERRULED", VER), "retired": _c("retired  ", DIM)}.get(h["status"], h["status"])
+    return f"  {_c('No ' + str(h['id']).rjust(3), DIM)}  {stamp}  {h['says'][:48]:<48} {_c(case.get('source',''), DIM)}"
