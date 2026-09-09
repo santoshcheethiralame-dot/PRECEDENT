@@ -1,0 +1,6 @@
+{
+  "name": "precedent-plugin",
+  "private": true,
+  "type": "module",
+  "main": "precedent.ts"
+}

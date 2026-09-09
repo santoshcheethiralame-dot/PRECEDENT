@@ -1,0 +1,57 @@
+// Drives the plugin the way opencode drives it: same hook names, same argument
+// shapes, same expectation that a throw in tool.execute.before aborts the call.
+// The only thing missing is a language model, which is not what this proves.
+//
+//   node --experimental-strip-types plugin/contract.test.ts <repo>
+//
+// Requires `python -m precedent serve` to be running.
+
+import { Precedent } from "./precedent.ts"
+
+const repo = process.argv[2]
+if (!repo) {
+  console.error("usage: contract.test.ts <repo path>")
+  process.exit(2)
+}
+
+let failures = 0
+const check = (name: string, ok: boolean, detail = "") => {
+  console.log(`  ${ok ? "ok  " : "FAIL"}  ${name}${detail ? "  — " + detail : ""}`)
+  if (!ok) failures++
+}
+
+const hooks: any = await Precedent({ directory: repo, worktree: repo })
+
+// 1. a write the ledger has no opinion about goes straight through
+let threw: Error | null = null
+try {
+  await hooks["tool.execute.before"]({ tool: "edit" }, { args: { filePath: "static/index.html" } })
+} catch (e) { threw = e as Error }
+check("an unrelated edit is not blocked", threw === null, threw?.message?.slice(0, 60) ?? "")
+
+// 2. the write that failed here before is refused BEFORE it lands
+threw = null
+try {
+  await hooks["tool.execute.before"]({ tool: "edit" }, { args: { filePath: "models/patient.py" } })
+} catch (e) { threw = e as Error }
+check("the edit that failed before is blocked", threw !== null)
+check("the card names the precedent", !!threw?.message?.includes("Precedent No"))
+check("the card names what is missing", !!threw?.message?.includes("migrations"))
+check("the card shows it was tested", !!threw?.message?.includes("fire"))
+
+// 3. a non-writing tool is never even asked about
+threw = null
+try {
+  await hooks["tool.execute.before"]({ tool: "read" }, { args: { filePath: "models/patient.py" } })
+} catch (e) { threw = e as Error }
+check("a read is not gated", threw === null)
+
+// 4. persuasive authority reaches the prompt, binding authority does not need to
+const output = { system: [] as string[] }
+await hooks["chat.message"]({ parts: [{ type: "text", text: "add a field to the patient model" }] }, {})
+await hooks["experimental.chat.system.transform"]({}, output)
+check("system transform runs without throwing", true, `${output.system.length} addenda`)
+
+if (threw === null && failures === 0) console.log("\n  the plugin refuses. all checks passed.")
+else if (failures) console.log(`\n  ${failures} check(s) failed.`)
+process.exit(failures ? 1 : 0)

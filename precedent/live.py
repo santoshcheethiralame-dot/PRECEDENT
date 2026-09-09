@@ -44,8 +44,10 @@ def trial(repo: Path, seed: Path, led: Ledger, task: str, model: str = MODEL,
     _git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "reset")
 
     t0 = time.time()
-    proc = subprocess.run(["opencode", "run", "-m", model, task], cwd=repo,
-                          capture_output=True, text=True, timeout=timeout, shell=True)
+    # opencode is a .cmd shim on Windows, so it needs a shell and one string.
+    cmd = f'opencode run -m {model} "{task.replace(chr(34), chr(39))}"'
+    proc = subprocess.run(cmd, cwd=repo, capture_output=True, text=True,
+                          timeout=timeout, shell=True)
     took = round(time.time() - t0, 1)
 
     ch = Change.from_git(repo)
