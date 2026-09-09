@@ -5,3 +5,4 @@ __pycache__/
 web/data.json
 .bench/
 bench/*.db
+.live/

@@ -142,6 +142,10 @@ def main(argv=None) -> int:
     b.add_argument("--recall", type=float, default=0.5)
     b.set_defaults(fn=cmd_bench)
 
+    v = sub.add_parser("serve", help="local HTTP face for a real agent runtime")
+    v.add_argument("--port", type=int, default=4000)
+    v.set_defaults(fn=lambda a: __import__("precedent.serve", fromlist=["main"]).main(a.port))
+
     a = p.parse_args(argv)
     return a.fn(a)
 
