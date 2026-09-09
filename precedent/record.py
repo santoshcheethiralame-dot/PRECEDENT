@@ -34,8 +34,36 @@ def file_case(led: Ledger, run_id: int, repo: str, sig: Signal, ch: Change,
             "template": template, "params": params, "says": says, "receipt": receipt}
 
 
+def revisit(led: Ledger, repo: str) -> list[int]:
+    """A case that could not be turned into a rule yet is not closed.
+
+    Every passing run adds history, and history is what the fallback compiler
+    reads. Prose holdings are re-derived when the evidence finally exists.
+    """
+    past = [c for c in (artifacts.load(Path(repo), r["id"])
+                        for r in led.successful_runs(repo, limit=40)) if c]
+    if not past:
+        return []
+    derived = []
+    for h in led.holdings(repo=repo):
+        if h["template"] != "prose" or h["status"] in ("overruled", "retired"):
+            continue
+        case = led.case(h["case_id"])
+        origin = artifacts.load(Path(repo), case["run_id"]) if case else None
+        if origin is None:
+            continue
+        t, params, says = compiler.fallback(case, origin, past)
+        if not t:
+            continue
+        status, receipt = empanel.empanel(led, repo, t, params, origin)
+        led.update_holding(h["id"], t, params, says, status, receipt)
+        derived.append(h["id"])
+    return derived
+
+
 def record_success(led: Ledger, run_id: int, repo: str, ch: Change) -> None:
     """A passing run is evidence too: it is what future holdings get tested against."""
     led.close_run(run_id, "pass")
     artifacts.save(Path(repo), run_id, ch)
+    revisit(led, repo)
     empanel.reconsider(led, repo)

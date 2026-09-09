@@ -3,3 +3,5 @@ __pycache__/
 .precedent/
 .demo/
 web/data.json
+.bench/
+bench/*.db

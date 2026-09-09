@@ -41,8 +41,13 @@ def _paths_named(text: str) -> list[str]:
     return re.findall(r"[\w.*-]+/[\w./*-]*|[\w*-]+\.\w+", text or "")
 
 
-def _dirs(paths: list[str]) -> set[str]:
-    return {p.split("/", 1)[0] for p in paths if "/" in p}
+def _units(paths: list[str]) -> set[str]:
+    """A top-level directory, or a root-level file - both are things that move together."""
+    return {(p.split("/", 1)[0] + "/") if "/" in p else p for p in paths}
+
+
+def _required(unit: str) -> str:
+    return f"{unit}**" if unit.endswith("/") else unit
 
 
 def history_pairs(past: list[Change]) -> dict[str, set[str]]:
@@ -52,7 +57,7 @@ def history_pairs(past: list[Change]) -> dict[str, set[str]]:
     """
     seen: dict[str, list[set[str]]] = {}
     for c in past:
-        ds = _dirs(c.touched)
+        ds = _units(c.touched)
         for d in ds:
             seen.setdefault(d, []).append(ds - {d})
     return {d: set.intersection(*obs) for d, obs in seen.items() if obs and set.intersection(*obs)}
@@ -60,13 +65,14 @@ def history_pairs(past: list[Change]) -> dict[str, set[str]]:
 
 def fallback(case: dict, ch: Change, past: list[Change] | None = None) -> tuple[str | None, dict, str]:
     """Evidence-driven, deterministic, no model required."""
+    units = _units(ch.touched)
     for d, partners in history_pairs(past or []).items():
-        missing = partners - _dirs(ch.touched)
-        if d in _dirs(ch.touched) and missing:
+        missing = partners - units
+        if d in units and missing:
             e = sorted(missing)[0]
-            hit = next((t for t in ch.touched if t.startswith(f"{d}/")), f"{d}/*")
-            trig = _globify(hit)
-            return "co_change", {"trigger": trig, "required": f"{e}/**"},                 f"Changing {trig} means changing {e}/ too."
+            hit = next((t for t in ch.touched if t.startswith(d.rstrip("/"))), d)
+            trig = _globify(hit) if "/" in hit else hit
+            return "co_change", {"trigger": trig, "required": _required(e)},                 f"Changing {trig} means changing {e} too."
 
     detail = case.get("detail") or ""
     try:

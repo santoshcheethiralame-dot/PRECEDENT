@@ -117,6 +117,13 @@ class Ledger:
                              (status, json.dumps(empanel), holding_id))
         self.con.commit()
 
+    def update_holding(self, holding_id: int, template: str, params: dict,
+                       says: str, status: str, empanel: dict) -> None:
+        self.con.execute(
+            "UPDATE holdings SET template=?, params=?, says=?, status=?, empanel=? WHERE id=?",
+            (template, json.dumps(params), says, status, json.dumps(empanel), holding_id))
+        self.con.commit()
+
     def cite(self, run_id: int, holding_id: int, outcome: str) -> None:
         self.con.execute("INSERT INTO citations(run_id, holding_id, outcome, at) VALUES (?,?,?,?)",
                          (run_id, holding_id, outcome, time.time()))

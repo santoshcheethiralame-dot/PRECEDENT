@@ -84,18 +84,87 @@ the OpenAI-compatible protocol, so Ollama, Groq, Cerebras, OpenRouter and Gemini
 all work; set `PRECEDENT_BASE_URL`, `PRECEDENT_MODEL`, `PRECEDENT_API_KEY`.
 With no model reachable, the deterministic fallback takes over.
 
+## The number
+
+Two arms, five seeds, thirty tasks across three repos, three hundred runs.
+Identical tasks, identical agent, identical seeds — **the only thing that differs
+between arms is whether precedent is enforced.**
+
+| | A — no memory | C — binding gates |
+|---|---|---|
+| pass rate | 53.3% | **72.7%** |
+| pass rate on trapped tasks | 39.1% | **64.3%** |
+| **repeat-failure rate** | **58.1%** | **24.4%** |
+| false positives (on control tasks) | 0.0% | 8.6% |
+| regressions vs arm A | — | **0** |
+
+Repeat-failure rate is the one that matters: of the tasks whose trap class had
+already bitten once, how many bit again. Memory cuts it by **58%**.
+
+### It starts level and pulls away
+
+Trap pass rate by position in the sequence. Arm C begins identical to arm A —
+the ledger is empty — and diverges as precedent accumulates.
+
+| tasks | A | C |
+|---|---|---|
+| 0–5 | 30% | 30% |
+| 6–11 | 46% | 50% |
+| 12–17 | 45% | 60% |
+| 18–23 | 44% | **92%** |
+| 24–29 | 30% | **87%** |
+
+### Where it does not work
+
+| trap class | A | C | |
+|---|---|---|---|
+| schema without migration | 57% | 88% | caught |
+| types without regenerate | 35% | 70% | caught |
+| plugin not declared | 25% | 50% | partly caught |
+| **hand-edited generated file** | **33%** | **33%** | **not caught at all** |
+
+The last row is the honest one. A co-change rule asks whether the right
+directory moved. An agent that hand-edits `client/generated.py` instead of
+running the generator *does* touch the right directory — with the wrong content.
+Structural rules cannot see that. Catching it needs a `forbidden_edit` holding,
+which this failure signal cannot produce on its own.
+
+### Four caveats, stated plainly
+
+1. **The agent is synthetic.** It performs each companion action with probability
+   `p_recall` from a seeded generator. This measures the enforcement layer, not a
+   language model.
+2. **Arm B was not run.** Its entire mechanism is whether a model obeys a
+   paragraph in its prompt, which a synthetic agent cannot answer. Rather than
+   invent the comparison that is the whole point of the project, it is left
+   unrun. `python -m precedent bench --arms A,B,C` runs it the moment a provider
+   is reachable.
+3. **The false-positive cost is not priced.** A blocked run is allowed to
+   continue and can still pass, so 8.6% shows up as wasted work rather than as a
+   failure. Under a hard block it would cost more.
+4. **All three false positives are one control family.** Editing `docs/` alone
+   trips a co-change rule learned from runs where `docs/` always moved with
+   `plugins/`. Empanelment did not catch it because no earlier successful run had
+   ever touched `docs/` by itself — exactly the blind spot the empanelment
+   receipt is supposed to expose, doing so here in public.
+
+Reproduce:
+
+```bash
+python -m precedent bench --arms A,C --seeds 1,2,3,4,5   # ~150s, writes bench/report.json
+```
+
 ## Where this is
 
-**T0 is done.** The loop closes: the app fails, the failure becomes precedent,
+**T0 and T1 are done.** The loop closes: the app fails, the failure becomes precedent,
 the same task is halted and then succeeds — and `test_loop.py` asserts every
 step of that, including that an unrelated edit is *not* gated.
 
 ```
-python -m pytest -q        # 20 passed
+python -m pytest -q        # 27 passed
 ```
 
-**Not built yet, and not claimed:** the three-arm benchmark and its number
-(A: no memory · B: prose in the prompt · C: binding gates), the churn and revert
-harvesters, cross-repo transfer, and the web surface beyond the demo. The
-headline claim of this project is a measurement, and until that benchmark runs
-there is no measurement — only a working mechanism.
+**Not built yet, and not claimed:** arm B (needs a provider), the churn and
+revert harvesters, cross-repo transfer, and the web surface beyond the demo —
+the tape, the docket, the case file and the overruled page. `bench/report.json`
+already carries the data each of those pages renders.

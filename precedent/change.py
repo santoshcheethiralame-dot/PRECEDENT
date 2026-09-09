@@ -65,6 +65,27 @@ class Change:
         return cls(repo=repo, touched=touched, added=added)
 
     @classmethod
+    def snapshot(cls, repo: Path) -> dict[str, str]:
+        repo = Path(repo)
+        return {str(p.relative_to(repo)).replace("\\", "/"): p.read_text(encoding="utf-8", errors="replace")
+                for p in repo.rglob("*")
+                if p.is_file() and not _ours(str(p.relative_to(repo)).replace("\\", "/"))}
+
+    @classmethod
+    def since(cls, repo: Path, before: dict[str, str]) -> "Change":
+        """Everything that changed, including work a command did on the agent's behalf."""
+        now = cls.snapshot(repo)
+        touched, added = [], {}
+        for path, text in now.items():
+            if before.get(path) == text:
+                continue
+            touched.append(path)
+            old = set(before.get(path, "").splitlines())
+            added[path] = [ln for ln in text.splitlines() if ln not in old]
+        touched += [p for p in before if p not in now]
+        return cls(repo=Path(repo), touched=sorted(touched), added=added)
+
+    @classmethod
     def from_edits(cls, repo: Path, edits: dict[str, str]) -> "Change":
         """Used by the harness, which knows exactly what it wrote."""
         return cls(repo=Path(repo), touched=sorted(edits),

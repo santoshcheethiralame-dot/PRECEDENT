@@ -18,6 +18,7 @@ from pathlib import Path
 from .change import Change
 from .db import Ledger
 from .harness import register_failure, run
+from .workspace import restore
 from . import gate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,25 +48,8 @@ STEPS = [
 ]
 
 
-SKIP = {"__pycache__", ".precedent"}
-
-
-def _files(root: Path) -> set[str]:
-    return {str(p.relative_to(root)).replace("\\", "/") for p in root.rglob("*")
-            if p.is_file() and not SKIP & set(p.parts)}
-
-
 def _copy(dst: Path) -> None:
-    """Restore the tree in place. The app servers hold this directory open on
-    Windows, so it is never deleted - only brought back to the seed state."""
-    dst.mkdir(parents=True, exist_ok=True)
-    want = _files(SEED)
-    for rel in _files(dst) - want:
-        (dst / rel).unlink(missing_ok=True)
-    for rel in want:
-        target = dst / rel
-        target.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(SEED / rel, target)
+    restore(SEED, dst)
 
 
 def teach(led: Ledger, repo: Path) -> dict:

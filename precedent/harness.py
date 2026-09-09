@@ -43,6 +43,7 @@ class Result:
     steps: list[Step] = field(default_factory=list)
     edits: dict[str, str] = field(default_factory=dict)
     fired: list[int] = field(default_factory=list)
+    before: dict = field(default_factory=dict)
 
 
 def _apply(repo: Path, path: str, content: str) -> None:
@@ -56,11 +57,13 @@ def _oracle(repo: Path, cmd: str) -> bool:
 
 
 def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "python oracle.py",
-        max_steps: int = 14, seed: int = 0, scripted: list[dict] | None = None) -> Result:
+        max_steps: int = 24, seed: int = 0, scripted: list[dict] | None = None,
+        on_block=None) -> Result:
     repo = Path(repo).resolve()
     run_id = led.open_run(str(repo), task, arm=arm, model=provider.MODEL, seed=seed)
     res = Result(run_id=run_id, arm=arm, passed=False)
     watch = RunWatch()
+    before = Change.snapshot(repo)
 
     system = SYSTEM
     if arm == "B":
@@ -108,12 +111,14 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
             watch.note_write(path, content)
             out = f"wrote {path}"
             if arm == "C":
-                verdicts = gate.evaluate(led, str(repo), Change.from_edits(repo, res.edits))
+                verdicts = gate.evaluate(led, str(repo), Change.since(repo, before))
                 if verdicts:
                     res.blocked += 1
                     res.fired += [v.holding_id for v in verdicts]
                     out = "BLOCKED BY PRECEDENT. " + " ".join(
                         f"{v.says} Rule: {v.rule}. Reason: {v.reason}." for v in verdicts)
+                    if on_block:
+                        script[:0] = on_block(verdicts)
         elif tool == "run":
             cmd = action.get("cmd", "")
             r = subprocess.run(cmd, cwd=repo, shell=True, capture_output=True, text=True)
@@ -121,7 +126,7 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
             watch.note_test(r.returncode == 0)
         elif tool == "done":
             if arm == "C":
-                verdicts = gate.evaluate(led, str(repo), Change.from_edits(repo, res.edits))
+                verdicts = gate.evaluate(led, str(repo), Change.since(repo, before))
                 if verdicts:
                     res.blocked += 1
                     res.fired += [v.holding_id for v in verdicts]
@@ -138,7 +143,8 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
         res.steps.append(Step(action, out))
         history.append(f"{json.dumps(action)}\n{out[:1200]}")
 
-    ch = Change.from_edits(repo, res.edits)
+    ch = Change.since(repo, before)
+    res.before = before
     res.passed = _oracle(repo, oracle)
 
     if res.passed:
@@ -155,7 +161,7 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
 def register_failure(repo: Path, led: Ledger, res: Result, oracle: str = "python oracle.py",
                      use_model: bool = True) -> dict:
     """Turn a failed run into precedent. Postflight, exactly as it would happen live."""
-    ch = Change.from_edits(Path(repo), res.edits)
+    ch = Change.since(Path(repo), res.before)
     return record.file_case(led, res.run_id, str(Path(repo).resolve()),
                             command_fail(oracle, "the oracle rejected the working tree"),
                             ch, use_model=use_model)
