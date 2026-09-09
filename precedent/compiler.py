@@ -102,7 +102,11 @@ def fallback(case: dict, ch: Change, past: list[Change] | None = None) -> tuple[
             return "must_run", {"glob": glob, "cmd": gen}, \
                 f"{glob} is generated. Run {gen} instead of editing it."
 
-    for d, partners in history_pairs(past or []).items():
+    # Sorted, so the same history always yields the same rule. Co-occurrence
+    # gives correlation, not direction: when two units always move together,
+    # either can be written as the trigger and the data cannot choose. See the
+    # docs/ -> registry.py false positive in bench/report.json.
+    for d, partners in sorted(history_pairs(past or []).items()):
         missing = partners - units
         if d in units and missing:
             e = sorted(missing)[0]

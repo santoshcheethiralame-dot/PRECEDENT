@@ -5694,5 +5694,12 @@
         "overruled": 0
       }
     }
+  ],
+  "caveats": [
+    "The agent is synthetic: it performs each companion action with probability p_recall from a seeded generator. The SAME seed gives the SAME behaviour in every arm, so the only difference between arms is enforcement.",
+    "Arm B (prose in the system prompt) was NOT run. Its entire mechanism is whether a language model obeys a paragraph, which a synthetic agent cannot answer. No number is reported for it.",
+    "A blocked run is allowed to continue and can still pass, so a false positive costs wasted work rather than a failure.",
+    "All 3 false positives are one rule: co_change(docs/*.md -> registry.py). Empanelment did not catch it because no past successful run had ever touched docs/ alone, so the false-positive test passed vacuously. The deeper limit is that co-occurrence gives correlation, not direction - docs/ and registry.py always moved together, so the useful rule and the useless one are equally supported by the data.",
+    "handedit_generated moved from 33% to 40% once must_run existed. It is the hardest class because a hand-edit and a regeneration touch exactly the same path; only the command distinguishes them, and only where commands are visible."
   ]
 }
