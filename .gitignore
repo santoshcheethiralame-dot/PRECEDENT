@@ -6,3 +6,5 @@ web/data.json
 .bench/
 bench/*.db
 .live/
+web/data.json
+web/report.json

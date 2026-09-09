@@ -146,6 +146,11 @@ def main(argv=None) -> int:
     v.add_argument("--port", type=int, default=4000)
     v.set_defaults(fn=lambda a: __import__("precedent.serve", fromlist=["main"]).main(a.port))
 
+    w = sub.add_parser("board", help="freeze the ledger and benchmark, then serve the board")
+    w.add_argument("--port", type=int, default=8850)
+    w.add_argument("--ledger", default=None)
+    w.set_defaults(fn=lambda a: __import__("precedent.board", fromlist=["main"]).main(a.port, a.ledger))
+
     a = p.parse_args(argv)
     return a.fn(a)
 
