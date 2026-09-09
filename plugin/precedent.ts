@@ -16,6 +16,12 @@ const URL_BASE = process.env.PRECEDENT_URL ?? "http://127.0.0.1:4000"
 const TIMEOUT_MS = Number(process.env.PRECEDENT_TIMEOUT_MS ?? 900)
 const CHECK = process.env.PRECEDENT_CHECK ?? "python oracle.py"
 
+// off      nothing happens; the agent is untouched
+// advise   past failures are injected as prose, and nothing is ever blocked.
+//          This is Autopsy's design, and it is arm B of the benchmark.
+// enforce  binding precedent stops the call. Default.
+const MODE = (process.env.PRECEDENT_MODE ?? "enforce").toLowerCase()
+
 // Tools that put bytes on disk. Anything else is not a change we can judge.
 const WRITERS = new Set(["write", "edit", "patch", "multiedit"])
 
@@ -103,14 +109,16 @@ const Precedent = async (ctx: {
 
     // Persuasive authority only. Binding precedent does not need words.
     "experimental.chat.system.transform": async (_input: any, output: { system: string[] }) => {
-      if (!repo) return
-      const r = await post("/v1/advise", { repo, task: lastTask })
+      if (!repo || MODE === "off") return
+      // In advise mode the binding rules are spoken rather than enforced, so the
+      // two arms differ only in whether the agent may ignore what it is told.
+      const r = await post("/v1/advise", { repo, task: lastTask, everything: MODE === "advise" })
       if (r?.text) output.system.push(r.text)
     },
 
     // Enforcement. This is the line Autopsy declined to write.
     "tool.execute.before": async (input: { tool: string }, output: { args: Record<string, unknown> }) => {
-      if (!repo) return
+      if (!repo || MODE !== "enforce") return
       const pending = pendingPaths(input.tool, output.args)
       if (!pending.length) return
       const r = await post("/v1/gate", { repo, pending })
@@ -121,7 +129,7 @@ const Precedent = async (ctx: {
 
     // The agent has gone quiet. Run the repo's own check; a failure is a case.
     event: async (input: { event: { type: string } }) => {
-      if (input?.event?.type !== "session.idle" || !repo) return
+      if (input?.event?.type !== "session.idle" || !repo || MODE === "off") return
       await post("/v1/postflight", { repo, cmd: CHECK })
     },
   }

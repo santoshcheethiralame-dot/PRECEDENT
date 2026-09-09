@@ -21,7 +21,7 @@ from pathlib import Path
 from .change import Change
 from .db import Ledger, ledger_path
 from .harvest import Signal, human_reject
-from . import gate, recall, record, shell, transfer
+from . import gate, recall, record, shell, templates, transfer
 
 PORT = 4000
 _ledgers: dict[str, Ledger] = {}
@@ -75,8 +75,25 @@ def gate_check(repo: str, pending: list[str] | None = None) -> dict:
         for v in verdicts]}
 
 
-def advise(repo: str, task: str) -> dict:
-    return {"text": recall.briefing(_led(repo), str(Path(repo).resolve()), task or "")}
+def advise(repo: str, task: str, everything: bool = False) -> dict:
+    """Persuasive authority as prose.
+
+    With `everything`, binding rules are rendered as warnings too. That is arm B:
+    the same knowledge the gate holds, delivered the way Autopsy delivers it -
+    a paragraph in the prompt that the model is free to ignore.
+    """
+    led, root = _led(repo), str(Path(repo).resolve())
+    if not everything:
+        return {"text": recall.briefing(led, root, task or "")}
+    rows = recall.similar(led, root, task or "", k=6, statuses=("binding", "persuasive"))
+    if not rows:
+        return {"text": ""}
+    lines = ["Past failures on tasks like this one, from this repository's own history:"]
+    for r in rows:
+        lines.append(f"- {r['says']}")
+        if r["template"] in templates.TEMPLATES:
+            lines.append(f"  ({templates.render(r['template'], r['params'])})")
+    return {"text": chr(10).join(lines)}
 
 
 def reject(repo: str, reason: str) -> dict:
@@ -107,7 +124,7 @@ def postflight(repo: str, cmd: str) -> dict:
 
 ROUTES = {
     "/v1/gate": lambda b: gate_check(b["repo"], b.get("pending")),
-    "/v1/advise": lambda b: advise(b["repo"], b.get("task", "")),
+    "/v1/advise": lambda b: advise(b["repo"], b.get("task", ""), b.get("everything", False)),
     "/v1/reject": lambda b: reject(b["repo"], b.get("reason", "")),
     "/v1/postflight": lambda b: postflight(b["repo"], b.get("cmd", "python oracle.py")),
 }

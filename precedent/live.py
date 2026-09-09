@@ -10,6 +10,8 @@ agent-agnostic recorder: nothing here knows what opencode is.
 from __future__ import annotations
 
 import json
+import os
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -30,16 +32,26 @@ TASKS = [
     "Add a last_visit field to the Patient model.",
 ]
 
-MODEL = "cloudflare-workers-ai/@cf/qwen/qwen2.5-coder-32b-instruct"
+MODEL = "opencode/nemotron-3.5-lightning-free"
+ARMS = ("off", "advise", "enforce")   # A: nothing · B: prose · C: gates
 
 
 def _git(repo: Path, *args: str) -> None:
     subprocess.run(["git", *args], cwd=repo, capture_output=True)
 
 
+def _reset_ledger(repo: Path) -> None:
+    """Every trial starts from the same knowledge, or the arms are not comparable."""
+    pristine = repo / ".precedent" / "ledger.seed.db"
+    live = repo / ".precedent" / "ledger.db"
+    if pristine.is_file():
+        shutil.copy2(pristine, live)
+
+
 def trial(repo: Path, seed: Path, led: Ledger, task: str, model: str = MODEL,
-          timeout: int = 420) -> dict:
+          timeout: int = 420, mode: str = "enforce") -> dict:
     restore(seed, repo)
+    _reset_ledger(repo)
     _git(repo, "add", "-A")
     _git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "reset")
 
@@ -56,7 +68,8 @@ def trial(repo: Path, seed: Path, led: Ledger, task: str, model: str = MODEL,
                             capture_output=True, text=True)
 
     return {
-        "task": task, "seconds": took, "exit": proc.returncode,
+        "task": task, "mode": mode, "seconds": took, "exit": proc.returncode,
+        "halted": "BLOCKED BY PRECEDENT" in (proc.stdout + proc.stderr),
         "touched": ch.touched,
         "oracle_passed": oracle.returncode == 0,
         "oracle": (oracle.stdout + oracle.stderr).strip()[:200],
@@ -80,26 +93,37 @@ def score(rows: list[dict]) -> dict:
     }
 
 
-def main(n: int | None = None, model: str = MODEL, out: Path | None = None) -> dict:
+def main(n: int | None = None, model: str = MODEL, out: Path | None = None,
+         arms: tuple[str, ...] = ARMS) -> dict:
+    """The arm B question, asked of a real model.
+
+    Same tasks, same model, same repository state. Arm `advise` is told about
+    every past failure in prose and may ignore it; arm `enforce` is stopped.
+    Nothing here is synthetic - this is the comparison the synthetic benchmark
+    could not make.
+    """
     seed = ROOT / "seeds" / "clinic"
-    repo = (ROOT / ".live" / "clinic").resolve()
+    repo = (ROOT / ".live" / "trial").resolve()
     led = Ledger(repo / ".precedent" / "ledger.db")
     tasks = TASKS[:n] if n else TASKS
 
     rows = []
-    for i, task in enumerate(tasks, 1):
-        print(f"  [{i}/{len(tasks)}] {task}", flush=True)
-        try:
-            r = trial(repo, seed, led, task, model=model)
-        except subprocess.TimeoutExpired:
-            r = {"task": task, "timeout": True, "fired": [], "oracle_passed": False,
-                 "touched": [], "seconds": None}
-        rows.append(r)
-        print(f"        oracle={'pass' if r['oracle_passed'] else 'FAIL'} "
-              f"fired={len(r['fired'])} touched={r['touched']}", flush=True)
+    for mode in arms:
+        for i, task in enumerate(tasks, 1):
+            print(f"  [{mode} {i}/{len(tasks)}] {task}", flush=True)
+            try:
+                r = trial(repo, seed, led, task, model=model, mode=mode)
+            except subprocess.TimeoutExpired:
+                r = {"task": task, "mode": mode, "timeout": True, "fired": [],
+                     "oracle_passed": False, "touched": [], "seconds": None, "halted": False}
+            rows.append(r)
+            print(f"        oracle={'pass' if r['oracle_passed'] else 'FAIL'}"
+                  f"  halted={r.get('halted')}  touched={r['touched']}", flush=True)
 
+    by_arm = {m: score([r for r in rows if r.get("mode") == m]) for m in arms}
     report = {"generated": time.strftime("%Y-%m-%d %H:%M"), "model": model,
-              "agent": "opencode", "score": score(rows), "rows": rows}
+              "agent": "opencode", "arms": list(arms), "by_arm": by_arm,
+              "score": score(rows), "rows": rows}
     out = out or ROOT / "bench" / "live.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
