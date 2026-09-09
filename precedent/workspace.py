@@ -17,8 +17,17 @@ def files(root: Path) -> set[str]:
 
 
 def restore(seed: Path, dst: Path) -> None:
+    """Bring dst back to the seed state.
+
+    Purge __pycache__ first. copy2 preserves the seed's mtime, so a .pyc built
+    from a since-modified source can look newer than the file we just restored
+    and Python will import the stale module - which silently reverts the very
+    change a run is being judged on.
+    """
     seed, dst = Path(seed), Path(dst)
     dst.mkdir(parents=True, exist_ok=True)
+    for cache in list(dst.rglob("__pycache__")):
+        shutil.rmtree(cache, ignore_errors=True)
     want = files(seed)
     for rel in files(dst) - want:
         (dst / rel).unlink(missing_ok=True)

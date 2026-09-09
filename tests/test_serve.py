@@ -92,3 +92,17 @@ def test_a_bad_request_never_stalls_the_agent():
         handler({})           # the route raises...
     # ...and do_POST turns that into a non-blocking answer, which is the contract
     assert serve.Handler.do_POST.__doc__ is None       # no magic, just the try/except
+
+
+def test_absolute_pending_paths_are_understood(repo):
+    """opencode hands out absolute paths. A gate that does not relativise them
+    lets the triggering write through and then refuses the fix it asked for."""
+    teach(repo)
+    abs_model = str((repo / "models" / "patient.py").resolve())
+    assert serve.gate_check(str(repo), pending=[abs_model])["block"] is True
+
+    # and the migration, given absolutely, must SATISFY the rule
+    (repo / "models" / "patient.py").write_text(model_file("phone_verified"), encoding="utf-8")
+    abs_mig = str((repo / "migrations" / "002_pv.sql").resolve())
+    assert serve.gate_check(str(repo), pending=[abs_mig])["block"] is False, \
+        "the agent must be able to do the work the halt card demanded"

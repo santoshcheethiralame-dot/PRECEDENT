@@ -17,7 +17,7 @@ from pathlib import Path
 from .change import Change
 from .db import Ledger
 from .harvest import RunWatch, command_fail
-from . import artifacts, gate, overrule, provider, recall, record, render
+from . import artifacts, gate, overrule, provider, recall, record, render, shell
 
 SYSTEM = """You are editing a small codebase. Reply with ONE JSON action, nothing else:
 {"tool":"list_files"}
@@ -53,7 +53,7 @@ def _apply(repo: Path, path: str, content: str) -> None:
 
 
 def _oracle(repo: Path, cmd: str) -> bool:
-    return subprocess.run(cmd, cwd=repo, shell=True, capture_output=True, text=True).returncode == 0
+    return shell.run(cmd, repo).returncode == 0
 
 
 def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "python oracle.py",
@@ -121,7 +121,7 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
                         script[:0] = on_block(verdicts)
         elif tool == "run":
             cmd = action.get("cmd", "")
-            r = subprocess.run(cmd, cwd=repo, shell=True, capture_output=True, text=True)
+            r = shell.run(cmd, repo)
             out = (r.stdout + r.stderr)[-1500:] or f"exit {r.returncode}"
             watch.note_test(r.returncode == 0)
         elif tool == "done":

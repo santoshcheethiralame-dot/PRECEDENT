@@ -21,7 +21,7 @@ from pathlib import Path
 from .change import Change
 from .db import Ledger, ledger_path
 from .harvest import Signal, human_reject
-from . import gate, recall, record
+from . import gate, recall, record, shell
 
 PORT = 4000
 _ledgers: dict[str, Ledger] = {}
@@ -34,6 +34,20 @@ def _led(repo: str) -> Ledger:
     return _ledgers[key]
 
 
+def _relative(repo: Path, path: str) -> str:
+    """Agent runtimes hand out absolute paths; every rule in the ledger is
+    repo-relative. Getting this wrong makes the gate both under- and
+    over-block: the triggering write slips through, and then the fix the
+    halt card asked for is itself refused."""
+    q = str(path).replace("\\", "/").strip()
+    if not q:
+        return ""
+    try:
+        return Path(q).resolve().relative_to(Path(repo).resolve()).as_posix()
+    except (ValueError, OSError):
+        return q.lstrip("./")
+
+
 def _tree(repo: str, pending: list[str] | None = None) -> Change:
     """The tree as it stands, plus what the agent is about to touch.
 
@@ -41,10 +55,10 @@ def _tree(repo: str, pending: list[str] | None = None) -> Change:
     post-mortem. Autopsy could only ever report; this refuses.
     """
     ch = Change.from_git(Path(repo))
-    for p in pending or []:
-        p = str(p).replace("\\", "/")
-        if p and p not in ch.touched:
-            ch.touched.append(p)
+    for raw in pending or []:
+        rel = _relative(Path(repo), raw)
+        if rel and rel not in ch.touched:
+            ch.touched.append(rel)
     ch.touched.sort()
     return ch
 
@@ -73,7 +87,7 @@ def reject(repo: str, reason: str) -> dict:
 
 
 def postflight(repo: str, cmd: str) -> dict:
-    r = subprocess.run(cmd, cwd=repo, shell=True, capture_output=True, text=True)
+    r = shell.run(cmd, repo)
     output = (r.stdout + r.stderr)[-1500:]
     if r.returncode == 0:
         return {"passed": True, "output": output}

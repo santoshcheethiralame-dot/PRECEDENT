@@ -32,8 +32,8 @@ class Change:
             return ""
 
     def run(self, cmd: str) -> int:
-        return subprocess.run(cmd, cwd=self.repo, shell=True,
-                              capture_output=True, text=True).returncode
+        from .shell import run as sh
+        return sh(cmd, self.repo).returncode
 
     @classmethod
     def from_git(cls, repo: Path) -> "Change":

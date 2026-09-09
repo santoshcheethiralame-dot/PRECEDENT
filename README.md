@@ -92,14 +92,15 @@ between arms is whether precedent is enforced.**
 
 | | A — no memory | C — binding gates |
 |---|---|---|
-| pass rate | 53.3% | **72.7%** |
-| pass rate on trapped tasks | 39.1% | **64.3%** |
-| **repeat-failure rate** | **58.1%** | **24.4%** |
-| false positives (on control tasks) | 0.0% | 8.6% |
+| pass rate | 53.3% | **73.3%** |
+| pass rate on trapped tasks | 39.1% | **65.2%** |
+| **repeat-failure rate** | **58.1%** | **23.3%** |
+| false positives (on control tasks) | 0.0% | **0.0%** |
 | regressions vs arm A | — | **0** |
 
 Repeat-failure rate is the one that matters: of the tasks whose trap class had
-already bitten once, how many bit again. Memory cuts it by **58%**.
+already bitten once, how many bit again. Memory cuts it by **60%**, and does it
+without blocking a single control task.
 
 ### It starts level and pulls away
 
@@ -112,7 +113,7 @@ the ledger is empty — and diverges as precedent accumulates.
 | 6–11 | 46% | 50% |
 | 12–17 | 45% | 60% |
 | 18–23 | 44% | **92%** |
-| 24–29 | 30% | **87%** |
+| 24–29 | 30% | **91%** |
 
 ### Where it does not work
 
@@ -120,7 +121,7 @@ the ledger is empty — and diverges as precedent accumulates.
 |---|---|---|---|
 | schema without migration | 57% | 88% | caught |
 | types without regenerate | 35% | 70% | caught |
-| plugin not declared | 25% | 50% | partly caught |
+| plugin not declared | 25% | 52% | partly caught |
 | **hand-edited generated file** | **33%** | **33%** | **not caught at all** |
 
 The last row is the honest one. A co-change rule asks whether the right
@@ -140,13 +141,16 @@ which this failure signal cannot produce on its own.
    unrun. `python -m precedent bench --arms A,B,C` runs it the moment a provider
    is reachable.
 3. **The false-positive cost is not priced.** A blocked run is allowed to
-   continue and can still pass, so 8.6% shows up as wasted work rather than as a
-   failure. Under a hard block it would cost more.
-4. **All three false positives are one control family.** Editing `docs/` alone
-   trips a co-change rule learned from runs where `docs/` always moved with
-   `plugins/`. Empanelment did not catch it because no earlier successful run had
-   ever touched `docs/` by itself — exactly the blind spot the empanelment
-   receipt is supposed to expose, doing so here in public.
+   continue and can still pass, so a false alarm would show up as wasted work
+   rather than as a failure. Under a hard block it would cost more.
+4. **These figures replace an earlier run.** The first pass reported an 8.6%
+   false-positive rate; it was an artifact of our own bytecode-cache bug, not a
+   property of the design. A `.pyc` records source mtime to one-second
+   granularity, and these runs write a module and import it inside the same
+   second — so Python could serve the previous version and score a failing run
+   as a pass. Arm C's learning reads run outcomes, so it inherited the error;
+   arm A has no feedback loop and is unchanged to the decimal. The pre-fix
+   report is kept as `bench/report.prebugfix.json`.
 
 Reproduce:
 
