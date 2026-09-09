@@ -58,3 +58,21 @@ def test_incomplete_params_never_fire():
 
 def test_render_is_readable():
     assert templates.render("co_change", {"trigger": "a/*.py", "required": "b/**"}) == "co_change( a/*.py -> b/** )"
+
+
+def test_must_run_separates_a_hand_edit_from_a_regeneration():
+    """The two touch the same path. Only the command tells them apart."""
+    p = {"glob": "client/*.py", "cmd": "tools/gen.py"}
+    by_hand = Change(repo=Path("."), touched=["client/generated.py"], commands=[])
+    assert templates.fires("must_run", p, by_hand)
+    regenerated = Change(repo=Path("."), touched=["client/generated.py"],
+                         commands=["python tools/gen.py"])
+    assert templates.fires("must_run", p, regenerated) is None
+
+
+def test_must_run_abstains_when_commands_are_invisible():
+    """A bare git view cannot see commands. A gate that fires on missing
+    evidence is a gate that fires on everything."""
+    p = {"glob": "client/*.py", "cmd": "tools/gen.py"}
+    unknown = Change(repo=Path("."), touched=["client/generated.py"], commands=None)
+    assert templates.fires("must_run", p, unknown) is None

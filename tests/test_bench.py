@@ -69,3 +69,34 @@ def test_regressions_are_a_passed_c_failed():
         {"arm": "C", "seed": 1, "order": 1, "task": "y", "trap": "t", "passed": True, "blocked": 1},
     ]
     assert [r["task"] for r in run.regressions(rows)] == ["x"]
+
+
+def test_the_agent_teaches_us_without_a_human(tmp_path):
+    """Churn, reverts and broken tests are free signals. Nobody has to say no."""
+    from precedent import harness, record
+    from precedent.change import Change
+    from precedent.db import Ledger
+    from precedent.workspace import restore
+    from tests.test_loop import SEED, model_file
+
+    repo = tmp_path / "clinic"
+    restore(SEED, repo)
+    led = Ledger(repo / ".precedent" / "ledger.db")
+
+    nl = chr(10)
+    sprawling = nl.join([f"HELPER_{i} = {i}" for i in range(12)]) + nl + model_file("notes")
+    reconsidered = model_file("notes")          # most of the first attempt thrown away
+
+    res = harness.run(repo, "add a field, then think better of it", led, arm="A", scripted=[
+        {"tool": "write_file", "path": "models/patient.py", "content": sprawling},
+        {"tool": "write_file", "path": "models/patient.py", "content": reconsidered},
+        {"tool": "write_file", "path": "migrations/002.sql",
+         "content": "ALTER TABLE patients ADD COLUMN notes TEXT;"},
+        {"tool": "done"},
+    ])
+    filed = record.file_free_signals(led, res.run_id, str(repo.resolve()), res.watch,
+                                     Change.since(repo, res.before))
+    assert filed, "rewriting a file inside one run is a signal"
+    assert any(led.case(f["case_id"])["source"] == "churn" for f in filed)
+    assert all(f["status"] != "binding" for f in filed), \
+        "a low-confidence signal must never reach binding authority"

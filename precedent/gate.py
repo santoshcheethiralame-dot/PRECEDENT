@@ -22,10 +22,17 @@ class Verdict:
     established: float
 
 
-def evaluate(led: Ledger, repo: str, ch: Change) -> list[Verdict]:
-    """Every binding holding that fires. Empty list means the tree is clear."""
+def evaluate(led: Ledger, repo: str, ch: Change,
+             borrowed: list[dict] | None = None) -> list[Verdict]:
+    """Every binding holding that fires. Empty list means the tree is clear.
+
+    `borrowed` carries precedent established in *other* repositories that has
+    been seen often enough to travel. It is evaluated the same way; nothing
+    about the gate cares where a rule came from.
+    """
     out: list[Verdict] = []
-    for h in led.holdings(repo=repo, status="binding"):
+    local = led.holdings(repo=repo, status="binding")
+    for h in local + [b for b in (borrowed or []) if b["status"] == "binding"]:
         reason = templates.fires(h["template"], h["params"], ch)
         if reason:
             out.append(Verdict(
@@ -47,4 +54,5 @@ def check(repo: Path, led: Ledger | None = None) -> tuple[list[Verdict], Change]
     repo = Path(repo).resolve()
     led = led or Ledger(ledger_path(repo))
     ch = Change.from_git(repo)
-    return evaluate(led, str(repo), ch), ch
+    from . import transfer
+    return evaluate(led, str(repo), ch, borrowed=transfer.borrowed(str(repo))), ch

@@ -25,7 +25,7 @@ def _learn(led: Ledger, res, repo: Path, output: str) -> dict:
     sig = Signal("command_fail", "high", "the working tree failed its check",
                  json.dumps({"output": output[:400]}))
     return record.file_case(led, res.run_id, str(repo.resolve()), sig,
-                            Change.since(repo, res.before), use_model=False)
+                            Change.since(repo, res.before, res.commands), use_model=False)
 
 
 def run_arm(arm: str, seed: int, p_recall: float, tasks) -> list[dict]:
@@ -48,8 +48,12 @@ def run_arm(arm: str, seed: int, p_recall: float, tasks) -> list[dict]:
 
         res = harness.run(repo, task.id, led, arm=arm, oracle=ORACLE,
                           scripted=list(actions), on_block=cb, seed=seed)
-        if not res.passed and arm in ("B", "C"):
-            _learn(led, res, repo, "")
+        if arm in ("B", "C"):
+            if not res.passed:
+                _learn(led, res, repo, "")
+            # free signals: the agent contradicting itself, with no human involved
+            record.file_free_signals(led, res.run_id, str(repo.resolve()),
+                                     res.watch, Change.since(repo, res.before, res.commands))
 
         rows.append({"arm": arm, "seed": seed, "order": n, "task": task.id,
                      "repo": task.repo, "trap": task.trap or "", "passed": res.passed,

@@ -23,6 +23,7 @@ class Change:
     repo: Path
     touched: list[str] = field(default_factory=list)          # repo-relative, forward slashes
     added: dict[str, list[str]] = field(default_factory=dict)  # path -> added lines
+    commands: list[str] | None = None   # None means "we could not see them"
 
     def text(self, path: str) -> str:
         p = self.repo / path
@@ -72,7 +73,8 @@ class Change:
                 if p.is_file() and not _ours(str(p.relative_to(repo)).replace("\\", "/"))}
 
     @classmethod
-    def since(cls, repo: Path, before: dict[str, str]) -> "Change":
+    def since(cls, repo: Path, before: dict[str, str],
+              commands: list[str] | None = None) -> "Change":
         """Everything that changed, including work a command did on the agent's behalf."""
         now = cls.snapshot(repo)
         touched, added = [], {}
@@ -83,7 +85,7 @@ class Change:
             old = set(before.get(path, "").splitlines())
             added[path] = [ln for ln in text.splitlines() if ln not in old]
         touched += [p for p in before if p not in now]
-        return cls(repo=Path(repo), touched=sorted(touched), added=added)
+        return cls(repo=Path(repo), touched=sorted(touched), added=added, commands=commands)
 
     @classmethod
     def from_edits(cls, repo: Path, edits: dict[str, str]) -> "Change":

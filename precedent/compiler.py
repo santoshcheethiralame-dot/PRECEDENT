@@ -41,6 +41,25 @@ def _paths_named(text: str) -> list[str]:
     return re.findall(r"[\w.*-]+/[\w./*-]*|[\w*-]+\.\w+", text or "")
 
 
+GEN_MARKER = re.compile(r"generated|auto-?generated|do not edit", re.I)
+GEN_CMD = re.compile(r"[\w./-]+\.(?:py|sh|js|ts|mjs)")
+
+
+def _generator_of(ch: Change, path: str) -> str | None:
+    """A generated file usually says so, and says what makes it.
+
+    'GENERATED FILE - run tools/gen.py, do not edit by hand' is evidence, not a
+    convention we invented: the rule comes out of the repository's own words.
+    """
+    head = chr(10).join(ch.text(path).splitlines()[:6])
+    if not GEN_MARKER.search(head):
+        return None
+    for tok in GEN_CMD.findall(head):
+        if tok != path:
+            return tok
+    return None
+
+
 def _units(paths: list[str]) -> set[str]:
     """A top-level directory, or a root-level file - both are things that move together."""
     return {(p.split("/", 1)[0] + "/") if "/" in p else p for p in paths}
@@ -66,6 +85,23 @@ def history_pairs(past: list[Change]) -> dict[str, set[str]]:
 def fallback(case: dict, ch: Change, past: list[Change] | None = None) -> tuple[str | None, dict, str]:
     """Evidence-driven, deterministic, no model required."""
     units = _units(ch.touched)
+    # A hand-edited generated file touches exactly the path a regeneration would.
+    # No structural rule separates them; whether the generator ran does.
+    for path in ch.touched:
+        gen = _generator_of(ch, path)
+        if gen and not any(gen in c for c in (ch.commands or [])):
+            glob = _globify(path)
+            return "must_run", {"glob": glob, "cmd": gen},                 f"{glob} is generated. Run {gen} instead of editing it."
+
+    # A hand-edited generated file touches exactly the path a regeneration would.
+    # No structural rule separates them; whether the generator ran does.
+    for path in ch.touched:
+        gen = _generator_of(ch, path)
+        if gen and not any(gen in c for c in (ch.commands or [])):
+            glob = _globify(path)
+            return "must_run", {"glob": glob, "cmd": gen}, \
+                f"{glob} is generated. Run {gen} instead of editing it."
+
     for d, partners in history_pairs(past or []).items():
         missing = partners - units
         if d in units and missing:

@@ -53,6 +53,25 @@ def must_appear(ch: Change, p: dict) -> str | None:
     return None
 
 
+def must_run(ch: Change, p: dict) -> str | None:
+    """Touching this means running that.
+
+    A generated file is the case in point: editing it by hand and regenerating
+    it touch exactly the same path, so no structural rule can tell them apart.
+    The difference is whether the generator ran.
+
+    Where commands are invisible - a bare `git` view of a tree - this abstains
+    rather than guessing. A gate that fires on missing evidence is a gate that
+    fires on everything.
+    """
+    if ch.commands is None:
+        return None
+    hit = _hits(ch.touched, p["glob"])
+    if hit and not any(p["cmd"] in c for c in ch.commands):
+        return f"{', '.join(hit)} was written by hand; `{p['cmd']}` never ran"
+    return None
+
+
 def regression_test(ch: Change, p: dict) -> str | None:
     if ch.run(f"python -m pytest -q {p['path']}") != 0:
         return f"the regression test {p['path']} fails"
@@ -66,6 +85,7 @@ TEMPLATES: dict[str, Callable[[Change, dict], str | None]] = {
     "must_not_appear": must_not_appear,
     "must_appear": must_appear,
     "regression_test": regression_test,
+    "must_run": must_run,
 }
 
 REQUIRED_PARAMS = {
@@ -75,6 +95,7 @@ REQUIRED_PARAMS = {
     "must_not_appear": ("regex", "glob"),
     "must_appear": ("regex", "glob"),
     "regression_test": ("path",),
+    "must_run": ("glob", "cmd"),
 }
 
 
@@ -87,6 +108,7 @@ def render(template: str, p: dict) -> str:
         "must_not_appear": lambda: f"must_not_appear( /{p.get('regex')}/ in {p.get('glob')} )",
         "must_appear": lambda: f"must_appear( /{p.get('regex')}/ in {p.get('glob')} )",
         "regression_test": lambda: f"regression_test( {p.get('path')} )",
+        "must_run": lambda: f"must_run( {p.get('glob')} : {p.get('cmd')} )",
     }[template]()
 
 

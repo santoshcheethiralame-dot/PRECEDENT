@@ -19,7 +19,8 @@ def _led(path: Path) -> tuple[Ledger, str]:
 def cmd_gate(a) -> int:
     led, repo = _led(a.path)
     ch = Change.from_git(Path(repo))
-    verdicts = gate.evaluate(led, repo, ch)
+    from . import transfer
+    verdicts = gate.evaluate(led, repo, ch, borrowed=transfer.borrowed(repo))
     if a.json:
         print(json.dumps([v.__dict__ for v in verdicts], indent=2))
     elif verdicts:
@@ -36,13 +37,16 @@ def cmd_reject(a) -> int:
     run_id = led.open_run(repo, a.reason, arm="live")
     led.close_run(run_id, "fail")
     out = record.file_case(led, run_id, repo, human_reject(a.reason), ch,
-                           use_model=not a.no_model)
+                           use_model=not a.no_model, share=True)
     print(f"case {out['case_id']} filed. holding {out['holding_id']} is {out['status'].upper()}.")
     print(f"  {out['says']}")
     if out.get("template"):
         from . import templates
         print(f"  {templates.render(out['template'], out['params'])}")
     print(f"  empanelment: {json.dumps(out['receipt'])}")
+    sh = out.get("shared") or {}
+    if sh.get("scope") == "global":
+        print(f"  seen in {sh['repos']} repositories - this rule now travels.")
     return 0
 
 

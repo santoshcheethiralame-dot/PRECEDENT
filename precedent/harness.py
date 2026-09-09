@@ -44,6 +44,8 @@ class Result:
     edits: dict[str, str] = field(default_factory=dict)
     fired: list[int] = field(default_factory=list)
     before: dict = field(default_factory=dict)
+    watch: RunWatch | None = None
+    commands: list[str] = field(default_factory=list)
 
 
 def _apply(repo: Path, path: str, content: str) -> None:
@@ -64,6 +66,7 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
     res = Result(run_id=run_id, arm=arm, passed=False)
     watch = RunWatch()
     before = Change.snapshot(repo)
+    commands: list[str] = []
 
     system = SYSTEM
     if arm == "B":
@@ -111,7 +114,7 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
             watch.note_write(path, content)
             out = f"wrote {path}"
             if arm == "C":
-                verdicts = gate.evaluate(led, str(repo), Change.since(repo, before))
+                verdicts = gate.evaluate(led, str(repo), Change.since(repo, before, commands))
                 if verdicts:
                     res.blocked += 1
                     res.fired += [v.holding_id for v in verdicts]
@@ -121,12 +124,13 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
                         script[:0] = on_block(verdicts)
         elif tool == "run":
             cmd = action.get("cmd", "")
+            commands.append(cmd)
             r = shell.run(cmd, repo)
             out = (r.stdout + r.stderr)[-1500:] or f"exit {r.returncode}"
             watch.note_test(r.returncode == 0)
         elif tool == "done":
             if arm == "C":
-                verdicts = gate.evaluate(led, str(repo), Change.since(repo, before))
+                verdicts = gate.evaluate(led, str(repo), Change.since(repo, before, commands))
                 if verdicts:
                     res.blocked += 1
                     res.fired += [v.holding_id for v in verdicts]
@@ -143,8 +147,10 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
         res.steps.append(Step(action, out))
         history.append(f"{json.dumps(action)}\n{out[:1200]}")
 
-    ch = Change.since(repo, before)
+    ch = Change.since(repo, before, commands)
     res.before = before
+    res.watch = watch
+    res.commands = commands
     res.passed = _oracle(repo, oracle)
 
     if res.passed:
@@ -161,7 +167,7 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
 def register_failure(repo: Path, led: Ledger, res: Result, oracle: str = "python oracle.py",
                      use_model: bool = True) -> dict:
     """Turn a failed run into precedent. Postflight, exactly as it would happen live."""
-    ch = Change.since(Path(repo), res.before)
+    ch = Change.since(Path(repo), res.before, res.commands)
     return record.file_case(led, res.run_id, str(Path(repo).resolve()),
                             command_fail(oracle, "the oracle rejected the working tree"),
                             ch, use_model=use_model)

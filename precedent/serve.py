@@ -21,7 +21,7 @@ from pathlib import Path
 from .change import Change
 from .db import Ledger, ledger_path
 from .harvest import Signal, human_reject
-from . import gate, recall, record, shell
+from . import gate, recall, record, shell, transfer
 
 PORT = 4000
 _ledgers: dict[str, Ledger] = {}
@@ -65,7 +65,9 @@ def _tree(repo: str, pending: list[str] | None = None) -> Change:
 
 def gate_check(repo: str, pending: list[str] | None = None) -> dict:
     led = _led(repo)
-    verdicts = gate.evaluate(led, str(Path(repo).resolve()), _tree(repo, pending))
+    root = str(Path(repo).resolve())
+    verdicts = gate.evaluate(led, root, _tree(repo, pending),
+                             borrowed=transfer.borrowed(root))
     return {"block": bool(verdicts), "verdicts": [
         {"n": v.holding_id, "says": v.says, "rule": v.rule, "reason": v.reason,
          "cited": v.cited, "empanel": v.empanel,
@@ -82,8 +84,9 @@ def reject(repo: str, reason: str) -> dict:
     root = str(Path(repo).resolve())
     run_id = led.open_run(root, reason, arm="live")
     led.close_run(run_id, "fail")
-    out = record.file_case(led, run_id, root, human_reject(reason), _tree(repo), use_model=False)
-    return {k: out[k] for k in ("case_id", "holding_id", "status", "says")}
+    out = record.file_case(led, run_id, root, human_reject(reason), _tree(repo),
+                           use_model=False, share=True)
+    return {k: out[k] for k in ("case_id", "holding_id", "status", "says", "shared")}
 
 
 def postflight(repo: str, cmd: str) -> dict:
@@ -97,9 +100,9 @@ def postflight(repo: str, cmd: str) -> dict:
     led.close_run(run_id, "fail")
     sig = Signal("command_fail", "high", "the working tree failed its check",
                  json.dumps({"output": output[:400]}))
-    out = record.file_case(led, run_id, root, sig, _tree(repo), use_model=False)
+    out = record.file_case(led, run_id, root, sig, _tree(repo), use_model=False, share=True)
     return {"passed": False, "output": output,
-            "filed": {k: out[k] for k in ("case_id", "holding_id", "status", "says")}}
+            "filed": {k: out[k] for k in ("case_id", "holding_id", "status", "says", "shared")}}
 
 
 ROUTES = {
