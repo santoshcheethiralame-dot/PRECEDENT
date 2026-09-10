@@ -83,6 +83,105 @@ def must_not_remove(ch: Change, p: dict) -> str | None:
     return None
 
 
+def blast_radius(ch: Change, p: dict) -> str | None:
+    """You changed the shape of a function. Who else calls it?
+
+    Path-based rules ask whether the other directory moved. This asks the
+    semantic question, and it is the one nobody checks: a signature change is
+    only finished when its callers are.
+    """
+    from . import graph
+
+    limit = int(p.get("max_untouched", 0))
+    changed = graph.changed_signatures(ch)
+    if not changed:
+        return None
+    touched = set(ch.touched)
+    for name in sorted(changed):
+        others = graph.callers(ch.repo, name, exclude=touched)
+        if len(others) > limit:
+            shown = ", ".join(others[:3]) + (" and more" if len(others) > 3 else "")
+            return (f"{name}() changed shape; {len(others)} caller(s) were not "
+                    f"updated: {shown}")
+    return None
+
+
+def no_quadratic(ch: Change, p: dict) -> str | None:
+    """Cost regressions in the code the agent just wrote.
+
+    Only lines this change ADDED are reported. A repository full of existing
+    nested loops is not this change's fault, and a gate that blames you for
+    code you did not touch gets switched off within the hour.
+    """
+    from . import efficiency
+
+    for path in _hits(ch.touched, p.get("glob", "**/*.py")):
+        added = set(ch.added.get(path, []))
+        if not added:
+            continue
+        try:
+            src = ch.text(path)
+        except Exception:
+            continue
+        lines = src.splitlines()
+        for finding in efficiency.findings(src):
+            try:
+                n = int(finding.split(":", 1)[0].split()[-1])
+            except (ValueError, IndexError):
+                continue
+            if 1 <= n <= len(lines) and lines[n - 1] in added:
+                return f"{path} {finding}"
+    return None
+
+
+def sleeper_gate(ch: Change, p: dict) -> str | None:
+    """Borrow a sibling tool's judgement instead of reimplementing it.
+
+    sleeper already decides what a coding agent may believe and ship - what it
+    imports, what it claims about cost, whether the docs still match, whether
+    the function already exists. Those are five detectors we do not need to
+    build twice.
+
+    If sleeper is not installed the check ABSTAINS. A gate that fires because a
+    dependency is missing is a gate that fires on everything.
+    """
+    import json as _json
+    import shutil
+
+    from . import shell
+
+    gate_name = p.get("gate", "deps")
+    files = [f for f in _hits(ch.touched, p.get("glob", "**/*.py"))]
+    if not files or not shutil.which("python"):
+        return None
+
+    from . import packs
+    home = packs.sleeper_home()
+    cmd = f"python -m sleeper review {' '.join(files[:20])} --json"
+    r = (shell.run_env(cmd, ch.repo, {"PYTHONPATH": str(home)}) if home
+         else shell.run(cmd, ch.repo))
+    if r.returncode not in (0, 1) or not (r.stdout or "").strip().startswith("{"):
+        return None                      # not installed, or could not answer
+    try:
+        data = _json.loads(r.stdout)
+    except ValueError:
+        return None
+
+    # sleeper grades three ways: trusted / provisional / quarantined.
+    # `quarantined` is a verdict; `provisional` means it could not confirm -
+    # offline, for instance - so the caller says which bar to use.
+    bar = p.get("at_least", "quarantined")
+    firing = {"quarantined"} if bar == "quarantined" else {"quarantined", "provisional"}
+
+    for f in data.get("files", []):
+        for g in f.get("gates", []):
+            if g.get("key") != gate_name:
+                continue
+            if str(g.get("status", "")).lower() in firing:
+                return f"{f.get('file', '?')}: {g.get('reason') or gate_name}"
+    return None
+
+
 def must_appear(ch: Change, p: dict) -> str | None:
     rx = re.compile(p["regex"])
     for path in _hits(ch.touched, p["glob"]):
@@ -122,6 +221,9 @@ TEMPLATES: dict[str, Callable[[Change, dict], str | None]] = {
     "forbidden_edit": forbidden_edit,
     "must_not_appear": must_not_appear,
     "must_not_remove": must_not_remove,
+    "blast_radius": blast_radius,
+    "no_quadratic": no_quadratic,
+    "sleeper_gate": sleeper_gate,
     "must_appear": must_appear,
     "regression_test": regression_test,
     "must_run": must_run,
@@ -133,6 +235,9 @@ REQUIRED_PARAMS = {
     "forbidden_edit": ("glob",),
     "must_not_appear": ("regex", "glob"),
     "must_not_remove": ("regex", "glob"),
+    "blast_radius": (),
+    "no_quadratic": (),
+    "sleeper_gate": ("gate",),
     "must_appear": ("regex", "glob"),
     "regression_test": ("path",),
     "must_run": ("glob", "cmd"),
@@ -147,6 +252,9 @@ def render(template: str, p: dict) -> str:
         "forbidden_edit": lambda: f"forbidden_edit( {p.get('glob')} )",
         "must_not_appear": lambda: f"must_not_appear( /{p.get('regex')}/ in {p.get('glob')} )",
         "must_not_remove": lambda: f"must_not_remove( /{p.get('regex')}/ in {p.get('glob')} )",
+        "blast_radius": lambda: "blast_radius( callers must be updated )",
+        "no_quadratic": lambda: f"no_quadratic( {p.get('glob', '**/*.py')} )",
+        "sleeper_gate": lambda: f"sleeper_gate( {p.get('gate')} )",
         "must_appear": lambda: f"must_appear( /{p.get('regex')}/ in {p.get('glob')} )",
         "regression_test": lambda: f"regression_test( {p.get('path')} )",
         "must_run": lambda: f"must_run( {p.get('glob')} : {p.get('cmd')} )",

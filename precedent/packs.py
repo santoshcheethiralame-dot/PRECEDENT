@@ -52,6 +52,23 @@ RULES: list[dict] = [
          glob="**/{test,tests,spec,__tests__}/**",
          says="You skipped a test instead of fixing it."),
 
+    # ---- error handling quietly removed --------------------------------
+    dict(key="swallowed", template="must_not_appear", binding=False, langs={"py"},
+         regex=r"except[^:]*:\s*(pass|\.\.\.)\s*$", glob="**/*.py",
+         says="An exception is being swallowed silently."),
+    dict(key="empty_catch", template="must_not_appear", binding=False, langs={"js"},
+         regex=r"catch\s*\([^)]*\)\s*\{\s*\}", glob="**/*.{js,ts,jsx,tsx}",
+         says="An empty catch block hides the error."),
+    dict(key="removed_raise", template="must_not_remove", binding=False, langs={"py"},
+         regex=r"^\s*(raise|assert)\b", glob="**/*.py",
+         says="You removed a raise or assert. Errors that were loud are now silent."),
+
+    # ---- migrations that cannot be undone ------------------------------
+    dict(key="destructive_sql", template="must_not_appear", binding=True,
+         regex=r"(?i)\b(DROP\s+(TABLE|COLUMN|DATABASE)|TRUNCATE\s+TABLE)\b",
+         glob="**/{migrations,migrate,db}/**",
+         says="This migration destroys data and cannot be undone."),
+
     # ---- unfinished work presented as finished -------------------------
     dict(key="stub", template="must_not_appear", binding=False,
          regex=r"NotImplementedError|TODO: implement|FIXME|XXX:", glob="**",
@@ -72,7 +89,8 @@ def _looks_like(repo: Path) -> set[str]:
 
 def applicable(repo: Path) -> list[dict]:
     langs = _looks_like(Path(repo))
-    return [r for r in RULES if not r.get("langs") or (r["langs"] & langs)]
+    pool = RULES + NATIVE + sleeper_rules()
+    return [r for r in pool if not r.get("langs") or (r["langs"] & langs)]
 
 
 def manifest_pairs(repo: Path) -> list[dict]:
@@ -91,3 +109,66 @@ def manifest_pairs(repo: Path) -> list[dict]:
                             trigger=manifest, required=lock,
                             says=f"Changing {manifest} means updating {lock} too."))
     return out
+
+
+# ---- checks that need no regex, only the code itself ---------------------
+
+NATIVE = [
+    dict(key="blast_radius", template="blast_radius", binding=False, langs={"py"},
+         params={"max_untouched": 0},
+         says="You changed a function's shape without updating its callers."),
+    dict(key="no_quadratic", template="no_quadratic", binding=False, langs={"py"},
+         params={"glob": "**/*.py"},
+         says="The code you just added has a quadratic shape in it."),
+]
+
+# ---- borrowed from sleeper, when it is present ---------------------------
+
+SLEEPER = [
+    dict(key="sleeper_deps", gate="deps",
+         says="The agent imported something this project does not declare."),
+    dict(key="sleeper_docs", gate="docs",
+         says="The documentation no longer matches the code."),
+    dict(key="sleeper_complexity", gate="complexity",
+         says="The measured cost does not match what the code claims."),
+    dict(key="sleeper_redundancy", gate="redundancy",
+         says="This repository already has a function that does this."),
+]
+
+
+def sleeper_home() -> Path | None:
+    """Where sleeper lives, if it is anywhere.
+
+    Installed, or pointed at by PRECEDENT_SLEEPER, or sitting next to this
+    repository - which is the normal case, since they are sibling projects.
+    """
+    import os
+
+    env = os.environ.get("PRECEDENT_SLEEPER")
+    if env and (Path(env) / "sleeper" / "__init__.py").is_file():
+        return Path(env)
+    sibling = Path(__file__).resolve().parents[2] / "sleeper"
+    if (sibling / "sleeper" / "__init__.py").is_file():
+        return sibling
+    return None
+
+
+def sleeper_available() -> bool:
+    from . import shell
+    if shell.run('python -c "import sleeper"', Path.cwd()).returncode == 0:
+        return True
+    return sleeper_home() is not None
+
+
+def sleeper_rules() -> list[dict]:
+    """Five domains borrowed rather than rebuilt - but only if it is installed.
+
+    Advisory at the provisional bar: sleeper cannot always confirm offline, and
+    an unconfirmed answer is not the same as a verdict.
+    """
+    if not sleeper_available():
+        return []
+    return [dict(key=r["key"], template="sleeper_gate", binding=False, langs={"py"},
+                 params={"gate": r["gate"], "at_least": "provisional",
+                         "glob": "**/*.py"},
+                 says=r["says"]) for r in SLEEPER]

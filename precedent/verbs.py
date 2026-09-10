@@ -34,8 +34,12 @@ def install_pack(repo: Path) -> list[dict]:
 
     out = []
     for r in packs.applicable(repo) + packs.manifest_pairs(repo):
-        params = ({"regex": r["regex"], "glob": r["glob"]}
-                  if "regex" in r else {"trigger": r["trigger"], "required": r["required"]})
+        if "params" in r:
+            params = r["params"]
+        elif "regex" in r:
+            params = {"regex": r["regex"], "glob": r["glob"]}
+        else:
+            params = {"trigger": r["trigger"], "required": r["required"]}
         key = (r["template"], json.dumps(params, sort_keys=True))
         if key in existing:
             continue
