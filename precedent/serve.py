@@ -105,10 +105,15 @@ def advise(repo: str, task: str, everything: bool = False) -> dict:
     led, root = _led(repo), str(Path(repo).resolve())
     if not everything:
         return {"text": recall.briefing(led, root, task or "")}
-    rows = recall.similar(led, root, task or "", k=6, statuses=("binding", "persuasive"))
+    # Arm B must be told about EVERY rule, not the ones a bag-of-words search
+    # happened to match. The gate evaluates all of them regardless of how the
+    # task was worded, so filtering the prose arm by similarity would compare
+    # full knowledge against partial knowledge and flatter the gate.
+    rows = recall.everything(led, root, task or "")
     if not rows:
         return {"text": ""}
-    lines = ["Past failures on tasks like this one, from this repository's own history:"]
+    lines = ["Rules this repository has learned from its own past failures.",
+             "They are not enforced. Follow them if they apply."]
     for r in rows:
         lines.append(f"- {r['says']}")
         if r["template"] in templates.TEMPLATES:

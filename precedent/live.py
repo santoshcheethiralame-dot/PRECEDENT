@@ -183,7 +183,7 @@ def score(rows: list[dict]) -> dict:
 
 
 def main(n: int | None = None, model: str = MODEL, out: Path | None = None,
-         arms: tuple[str, ...] = ARMS) -> dict:
+         arms: tuple[str, ...] = ARMS, retries: int = 3) -> dict:
     """The arm B question, asked of a real model.
 
     Same tasks, same model, same repository state. Arm `advise` is told about
@@ -203,11 +203,24 @@ def main(n: int | None = None, model: str = MODEL, out: Path | None = None,
     for mode in arms:
         for i, task in enumerate(tasks, 1):
             print(f"  [{mode} {i}/{len(tasks)}] {task}", flush=True)
-            try:
-                r = trial(repo, seed, led, task, model=model, mode=mode)
-            except subprocess.TimeoutExpired:
-                r = {"task": task, "mode": mode, "timeout": True, "fired": [],
-                     "oracle_passed": False, "touched": [], "seconds": None, "halted": False}
+            # The free provider returns intermittent 504s. A trial where the
+            # model never answered measures the provider, not the treatment, so
+            # it is retried rather than recorded - and if it keeps failing it is
+            # marked dead and excluded, never counted as a pass.
+            r = {}
+            for attempt in range(1, retries + 1):
+                try:
+                    r = trial(repo, seed, led, task, model=model, mode=mode)
+                except subprocess.TimeoutExpired:
+                    r = {"task": task, "mode": mode, "timeout": True, "fired": [],
+                         "oracle_passed": False, "touched": [], "seconds": None,
+                         "halted": False}
+                r["attempts"] = attempt
+                if not vacuous(r):
+                    break
+                if attempt < retries:
+                    print(f"        no answer from the model; retry {attempt}/{retries - 1}",
+                          flush=True)
             rows.append(r)
             print(f"        oracle={'pass' if r['oracle_passed'] else 'FAIL'}"
                   f"  halted={r.get('halted')}  touched={r['touched']}", flush=True)

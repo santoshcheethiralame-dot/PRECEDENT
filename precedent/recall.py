@@ -41,6 +41,24 @@ def similar(led: Ledger, repo: str, task: str, k: int = 5,
     return [dict(h, score=round(s, 3)) for s, h in scored[:k] if s > 0]
 
 
+def everything(led: Ledger, repo: str, task: str, cap: int = 40) -> list[dict]:
+    """Every rule in force, most relevant first - but none dropped.
+
+    similar() filters on score > 0, which silently returns NOTHING when the task
+    wording shares no token with the rule. For a prose arm that is the whole
+    treatment disappearing, and the comparison against the gate becomes void.
+    """
+    q = _vec(task)
+    rows = [h for h in led.holdings(repo=repo)
+            if h["status"] in ("binding", "persuasive")]
+    for h in rows:
+        case = led.case(h["case_id"]) or {}
+        h["score"] = round(_cos(q, _vec(
+            f"{h['says']} {case.get('summary','')} {' '.join(case.get('touched', []))}")), 3)
+    rows.sort(key=lambda h: -h["score"])
+    return rows[:cap]
+
+
 def briefing(led: Ledger, repo: str, task: str, k: int = 5) -> str:
     """Persuasive authority, as text, for arm B. Binding holdings do not need words."""
     rows = similar(led, repo, task, k=k, statuses=("persuasive",))
