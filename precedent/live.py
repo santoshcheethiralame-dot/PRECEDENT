@@ -66,6 +66,25 @@ def _reset_ledger(repo: Path) -> None:
         shutil.copy2(pristine, live)
 
 
+def start_service(port: int = 4000):
+    """The plugin talks to a local service. Nothing was starting one.
+
+    Without it every post() from the plugin fails, the plugin returns early,
+    and all three arms silently become a bare agent - which is exactly how the
+    previous run produced numbers that looked like a result.
+    """
+    import threading
+    from http.server import ThreadingHTTPServer
+    from . import serve
+
+    try:
+        httpd = ThreadingHTTPServer(("127.0.0.1", port), serve.Handler)
+    except OSError:
+        return None                      # already up; fine
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    return httpd
+
+
 def setup(seed: Path, repo: Path) -> dict:
     """Build the trial workspace once, and commit it as the baseline.
 
@@ -118,14 +137,54 @@ def _reset_tree(repo: Path) -> None:
     _git(repo, "clean", "-fdq")
 
 
-def _armed(repo: Path, led: Ledger) -> None:
-    """Refuse to start unless the treatment can actually be applied."""
+def _armed(repo: Path, led: Ledger, port: int = 4000) -> None:
+    """Refuse to start unless the treatment actually FIRES.
+
+    Checking that the parts exist is not enough and has failed twice. The
+    plugin file was present while the service it calls was not listening, so
+    every arm ran bare and reported numbers. This asks the service the same
+    question the plugin will ask, and demands the right answer.
+    """
+    import json as _json
+    import urllib.request
+
     plugin = repo / ".opencode" / "plugins" / "precedent.ts"
     if not plugin.is_file():
         raise RuntimeError(f"the plugin is not installed at {plugin}")
     binding = [h for h in led.holdings() if h["status"] == "binding"]
     if not binding:
         raise RuntimeError("the ledger holds no binding precedent; there is nothing to enforce")
+
+    base = f"http://127.0.0.1:{port}"
+    trigger = _trigger_path(binding[0])
+    try:
+        body = _json.dumps({"repo": str(repo), "pending": [trigger]}).encode()
+        req = urllib.request.Request(f"{base}/v1/gate", data=body,
+                                     headers={"Content-Type": "application/json"})
+        gate_says = _json.loads(urllib.request.urlopen(req, timeout=5).read())
+    except Exception as e:
+        raise RuntimeError(f"the service the plugin depends on is not answering on {base}: {e}")
+    if not gate_says.get("block"):
+        raise RuntimeError(
+            f"the gate did not fire on {trigger}, so enforce mode would enforce nothing")
+
+    try:
+        body = _json.dumps({"repo": str(repo), "task": "add a field",
+                            "everything": True}).encode()
+        req = urllib.request.Request(f"{base}/v1/advise", data=body,
+                                     headers={"Content-Type": "application/json"})
+        prose = _json.loads(urllib.request.urlopen(req, timeout=5).read()).get("text", "")
+    except Exception as e:
+        raise RuntimeError(f"the advise endpoint is not answering: {e}")
+    if not prose.strip():
+        raise RuntimeError("advise returned nothing, so arm B would be an empty prompt")
+
+
+def _trigger_path(holding: dict) -> str:
+    """A path the first binding rule is known to fire on."""
+    p = holding.get("params") or {}
+    trig = p.get("trigger") or p.get("glob") or ""
+    return trig.replace("**/", "").replace("*", "patient") or "models/patient.py"
 
 
 def trial(repo: Path, seed: Path, led: Ledger, task: str, model: str = MODEL,
@@ -194,8 +253,9 @@ def main(n: int | None = None, model: str = MODEL, out: Path | None = None,
     seed = ROOT / "seeds" / "clinic"
     repo = (WORKROOT / "trial").resolve()
     taught = setup(seed, repo)
+    start_service(4000)
     led = Ledger(repo / ".precedent" / "ledger.db")
-    _armed(repo, led)
+    _armed(repo, led, port=4000)
     print(f"  armed: {taught['status']} - {taught['says']}", flush=True)
     tasks = TASKS[:n] if n else TASKS
 

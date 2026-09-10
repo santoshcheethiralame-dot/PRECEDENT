@@ -100,3 +100,37 @@ def test_dead_trials_are_excluded_from_the_score_and_declared():
     s = live.score(real)
     assert s["trials"] == 1 and s["agent_failed"] == 1, \
         "the empty trial must not dilute the failure rate"
+
+
+def test_armed_refuses_when_the_service_is_not_listening(workspace):
+    """The plugin file existing proves nothing. It was present, the service was
+    not, and all three arms silently ran bare while reporting numbers."""
+    repo, _ = workspace
+    led = Ledger(repo / ".precedent" / "ledger.db")
+    with pytest.raises(RuntimeError, match="not answering"):
+        live._armed(repo, led, port=59999)      # nothing is there
+    led.close()
+
+
+def test_armed_passes_only_when_the_gate_actually_fires(workspace):
+    """End to end: start the service, ask it the question the plugin asks, and
+    require the answer that means the treatment is live."""
+    repo, _ = workspace
+    httpd = live.start_service(4111)
+    try:
+        led = Ledger(repo / ".precedent" / "ledger.db")
+        live._armed(repo, led, port=4111)       # must not raise
+        led.close()
+    finally:
+        if httpd:
+            httpd.shutdown()
+
+
+def test_the_trigger_path_comes_from_the_rule_itself(workspace):
+    _, taught = workspace
+    from precedent.db import Ledger as L
+    repo, _ = workspace
+    led = L(repo / ".precedent" / "ledger.db")
+    binding = [h for h in led.holdings() if h["status"] == "binding"][0]
+    led.close()
+    assert live._trigger_path(binding).endswith(".py")
