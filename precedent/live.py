@@ -137,6 +137,27 @@ def _reset_tree(repo: Path) -> None:
     _git(repo, "clean", "-fdq")
 
 
+def _repo_untouched() -> None:
+    """The agent must not have wandered into this repository.
+
+    It has, twice. opencode was pointed at a workspace outside the repo and
+    still edited seeds/, precedent/ and wrote a migrations/ directory at the
+    root - which a `git add -A` then committed. A trial that corrupts the
+    fixtures it is measured against poisons every result after it, so the run
+    stops the moment it happens rather than at the end.
+    """
+    import subprocess as _sp
+
+    r = _sp.run(["git", "status", "--porcelain"], cwd=str(ROOT),
+                capture_output=True, text=True)
+    dirty = [l for l in r.stdout.splitlines() if l.strip()]
+    if dirty:
+        raise RuntimeError(
+            "the agent modified the precedent repository during a trial:"
+            + chr(10) + chr(10).join("  " + d for d in dirty[:10])
+            + chr(10) + "the run is void; restore with: git checkout -- .")
+
+
 def _armed(repo: Path, led: Ledger, port: int = 4000) -> None:
     """Refuse to start unless the treatment actually FIRES.
 
@@ -276,6 +297,7 @@ def main(n: int | None = None, model: str = MODEL, out: Path | None = None,
                          "oracle_passed": False, "touched": [], "seconds": None,
                          "halted": False}
                 r["attempts"] = attempt
+                _repo_untouched()          # stop the moment it wanders
                 if not vacuous(r):
                     break
                 if attempt < retries:

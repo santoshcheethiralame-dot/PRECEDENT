@@ -34,3 +34,19 @@ def test_restore_refuses_to_write_onto_a_seed():
 def test_restore_refuses_to_write_inside_a_seed():
     with pytest.raises(ValueError, match="refusing to restore onto the seed"):
         restore(SEEDS / "clinic", SEEDS / "clinic" / "sub" / "dir")
+
+
+TOP_LEVEL = {".gitignore", "README.md", "bench", "install.sh", "plugin",
+             "precedent", "seeds", "tests", "web"}
+
+
+def test_no_stray_directory_has_been_committed_at_the_repo_root():
+    """A live agent once wrote migrations/ into the repository root and a
+    `git add -A` committed it. Three separate times agent droppings have been
+    swept into a commit, so the expected shape is now asserted rather than
+    remembered."""
+    r = subprocess.run(["git", "ls-tree", "--name-only", "HEAD"],
+                       capture_output=True, text=True, cwd=SEEDS.parent)
+    tracked = {l.strip() for l in r.stdout.splitlines() if l.strip()}
+    unexpected = tracked - TOP_LEVEL
+    assert not unexpected, f"unexpected tracked entries at the repo root: {sorted(unexpected)}"

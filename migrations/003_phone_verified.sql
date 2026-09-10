@@ -1,1 +1,0 @@
-ALTER TABLE patients ADD COLUMN phone_verified INTEGER DEFAULT 0;
