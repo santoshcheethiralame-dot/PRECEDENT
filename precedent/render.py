@@ -84,3 +84,20 @@ def docket_line(h: dict, case: dict) -> str:
     stamp = {"binding": _c("BINDING  ", AMB), "persuasive": _c("advisory ", DIM),
              "overruled": _c("OVERRULED", VER), "retired": _c("retired  ", DIM)}.get(h["status"], h["status"])
     return f"  {_c('No ' + str(h['id']).rjust(3), DIM)}  {stamp}  {h['says'][:48]:<48} {_c(case.get('source',''), DIM)}"
+
+def watch_halt(seat, touched) -> str:
+    head = f"  {_c('HALT', VER)}  {seat.says}"
+    why = f"        {_c(seat.reason, DIM)}"
+    nxt = f"        {_c('do this next: ' + seat.next, AMB)}" if seat.next else ""
+    return chr(10).join(x for x in (head, why, nxt) if x)
+
+
+def watch_recovered(ids) -> str:
+    which = ", ".join(f"No {i}" for i in ids)
+    return f"  {_c('CLEARED', GRN)}  {which} satisfied. The change may land."
+
+
+def watch_clear(touched) -> str:
+    n = len(touched)
+    what = touched[0] if n == 1 else f"{n} files"
+    return f"  {_c('ok', GRN)}      {what} - nothing objects."

@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import subprocess
 import time
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 from .change import Change
@@ -24,6 +24,18 @@ from .harvest import Signal, human_reject
 from . import gate, nextstep, recall, record, shell, templates, transfer
 
 PORT = 4000
+
+# Every decision the bench makes, kept in memory so a page that opens late still
+# sees the run. Bounded: this is a demo surface, not a datastore.
+_events: list[dict] = []
+_EVENT_CAP = 400
+
+
+def emit(kind: str, **fields) -> dict:
+    ev = {"seq": len(_events) + 1, "at": time.time(), "kind": kind, **fields}
+    _events.append(ev)
+    del _events[:-_EVENT_CAP]
+    return ev
 _ledgers: dict[str, Ledger] = {}
 
 
@@ -69,6 +81,12 @@ def gate_check(repo: str, pending: list[str] | None = None) -> dict:
     verdicts = gate.evaluate(led, root, _tree(repo, pending),
                              borrowed=transfer.borrowed(root))
     ch = _tree(repo, pending)
+    # One event shape for both paths. Whether the decision came from a plugin
+    # intercepting a write or from the watcher noticing the file changed, a page
+    # should not have to care.
+    from . import panel
+    emit("sitting", **panel.sit(led, str(Path(repo).resolve()), ch,
+                                borrowed=transfer.borrowed(str(Path(repo).resolve()))).as_dict())
     return {"block": bool(verdicts), "verdicts": [
         {"n": v.holding_id, "says": v.says, "rule": v.rule, "reason": v.reason,
          "next": nextstep.suggest(v, Path(repo), ch.touched),
@@ -133,6 +151,28 @@ ROUTES = {
 
 
 class Handler(BaseHTTPRequestHandler):
+    def _stream(self) -> None:
+        """Server-sent events. One long response, flushed per decision."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        sent = 0
+        try:
+            while True:
+                while sent < len(_events):
+                    ev = _events[sent]
+                    sent += 1
+                    payload = "data: " + json.dumps(ev) + chr(10) + chr(10)
+                    self.wfile.write(payload.encode())
+                    self.wfile.flush()
+                time.sleep(0.25)
+                self.wfile.write((": keep-alive" + chr(10) + chr(10)).encode())
+                self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
     def log_message(self, *a):
         pass
 
@@ -145,6 +185,8 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_GET(self):
+        if self.path.startswith("/v1/events"):
+            return self._stream()
         if self.path.startswith("/v1/health"):
             return self._send(200, {"ok": True, "ledgers": list(_ledgers)})
         self._send(404, {"error": "no such route"})
@@ -164,7 +206,10 @@ class Handler(BaseHTTPRequestHandler):
 def main(port: int = PORT) -> int:
     print(f"  precedent listening on http://127.0.0.1:{port}")
     try:
-        HTTPServer(("127.0.0.1", port), Handler).serve_forever()
+        # Threading matters here: an SSE client holds its response open forever,
+        # and a single-threaded server would stop answering gate calls the moment
+        # the board connected - the agent would hang waiting on its own memory.
+        ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
     except KeyboardInterrupt:
         pass
     return 0

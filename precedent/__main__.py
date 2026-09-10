@@ -200,6 +200,13 @@ def main(argv=None) -> int:
     from .cli_verbs import register
     register(sub)
 
+    wt = sub.add_parser("watch", help="show every decision live, with any agent or editor")
+    wt.add_argument("path", nargs="?", default=".")
+    wt.add_argument("--port", type=int, default=4000)
+    wt.add_argument("--poll", type=float, default=0.7)
+    wt.set_defaults(fn=lambda a: __import__("precedent.watch", fromlist=["main"]).main(
+        a.path, a.port, a.poll))
+
     a = p.parse_args(argv)
     return a.fn(a)
 
