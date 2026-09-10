@@ -73,6 +73,26 @@
   button:hover{border-color:var(--amb);color:var(--amb)}
   button:active{transform:scale(.98)}
 
+  /* ---------- live ---------- */
+  .dot2{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:9px;flex:none}
+  .v-halt .dot2{background:var(--ver)} .v-note .dot2{background:var(--amb)}
+  .v-clear .dot2{background:#243040} .v-skip .dot2{background:var(--dim)}
+  .seat{display:flex;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--rule);
+        font-size:12.5px;gap:2px}
+  .seat:last-child{border-bottom:none}
+  .seat .who{flex:1;min-width:0}
+  .seat .dom{font-family:ui-monospace,Consolas,monospace;font-size:9px;letter-spacing:.14em;
+             color:var(--dim);text-transform:uppercase;margin-left:10px;white-space:nowrap}
+  .seat .why{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--mut);margin-top:4px}
+  .seat .nxt{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--amb);margin-top:5px}
+  .v-halt .who{color:var(--ver)} .v-note .who{color:var(--amb)}
+  .v-clear .who{color:var(--dim)}
+  .files{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:var(--mut);
+         margin-bottom:14px}
+  .files b{color:var(--txt);font-weight:400}
+  .pulse{animation:pulse 1.4s var(--ease) infinite}
+  @keyframes pulse{0%,100%{opacity:.35}50%{opacity:1}}
+
   /* ---------- docket ---------- */
   table{width:100%;border-collapse:collapse}
   th{text-align:left;font-family:ui-monospace,Consolas,monospace;font-size:9px;letter-spacing:.18em;
@@ -173,6 +193,7 @@
 <header>
   <div class="wm">Precedent<i>.</i></div>
   <nav>
+    <a href="#live">Live</a>
     <a href="#tape">Tape</a>
     <a href="#docket">Docket</a>
     <a href="#ablation">Ablation</a>
@@ -182,6 +203,16 @@
 
 <main>
   <!-- ============ TAPE ============ -->
+  <!-- ============ LIVE ============ -->
+  <section id="live">
+    <div class="eyebrow" id="livemeta">waiting for a service</div>
+    <h2 class="head">Every rule, every decision, as it happens.</h2>
+    <p class="sub">Run <code>python -m precedent watch</code> in any repository and edit a file
+      with any agent, any editor. This reads the working tree, not the agent, so what appears
+      below is every rule that looked &mdash; including the ones that looked and said nothing.</p>
+    <div id="livebody"></div>
+  </section>
+
   <section id="tape">
     <div class="eyebrow">300 runs · 30 tasks · 3 repos · 5 seeds</div>
     <h2 class="head">Same tasks. Same agent. Same seeds.<br>One of them remembers.</h2>
@@ -293,11 +324,12 @@ function show(id){
   document.querySelectorAll("section").forEach(s => s.classList.toggle("on", s.id === id));
   document.querySelectorAll("nav a").forEach(a => a.classList.toggle("on", a.hash === "#" + id));
   if (id === "tape") playTape();
+  if (id === "live") liveConnect();
 }
 function route(){
-  const h = (location.hash || "#tape").slice(1);
+  const h = (location.hash || "#live").slice(1);
   if (h.startsWith("case/")) { renderCase(h.split("/")[1]); show("case"); }
-  else show(["tape","docket","ablation","overruled"].includes(h) ? h : "tape");
+  else show(["live","tape","docket","ablation","overruled"].includes(h) ? h : "live");
 }
 addEventListener("hashchange", route);
 
@@ -329,6 +361,82 @@ function playTape(){
     $("rd").textContent = (d >= 0 ? "+" : "") + d.toFixed(1) + " pts";
     $("sc").style.width = (k / n * 100) + "%";
   }, 22);
+}
+
+
+// ---------- live ----------
+// The service streams a `sitting` for every evaluation - from the watcher or
+// from a plugin intercepting a write. A page should not care which noticed.
+const SERVICE = new URLSearchParams(location.search).get("service")
+  || "http://127.0.0.1:4000";
+let stream = null, lastSitting = null;
+
+function liveConnect(){
+  if (stream) return;
+  try { stream = new EventSource(SERVICE + "/v1/events"); }
+  catch { return liveOffline(); }
+
+  stream.onopen = () => {
+    $("livemeta").textContent = "connected to " + SERVICE;
+    $("livemeta").classList.remove("pulse");
+  };
+  stream.onerror = () => { stream.close(); stream = null; liveOffline(); setTimeout(liveConnect, 4000); };
+  stream.onmessage = (e) => {
+    let ev; try { ev = JSON.parse(e.data); } catch { return; }
+    if (ev.kind === "sitting"){ lastSitting = ev; renderLive(ev); }
+    if (ev.kind === "watch.start"){
+      $("livemeta").textContent = "watching " + (ev.repo || "").split(/[\/]/).pop();
+    }
+    if (ev.kind === "recovered" && lastSitting){
+      $("livebody").insertAdjacentHTML("afterbegin",
+        `<div class="panel" style="border-color:var(--grn);margin-bottom:14px">
+           <div class="eyebrow" style="color:var(--grn)">Cleared</div>
+           <div>The change satisfied every precedent that stopped it. It may land.</div>
+         </div>`);
+    }
+  };
+}
+
+function liveOffline(){
+  $("livemeta").textContent = "no service on " + SERVICE;
+  $("livemeta").classList.add("pulse");
+  if (!lastSitting) $("livebody").innerHTML = `<div class="empty">
+    <div class="big">Nothing is watching yet.</div>
+    <p>Run <code>python -m precedent watch</code> in a repository, then edit a file with any
+    agent or editor. Every rule's decision appears here as it happens.</p></div>`;
+}
+
+function renderLive(ev){
+  const seats = ev.seats || [];
+  const halted = seats.filter(s => s.verdict === "halt");
+  const files = (ev.touched || []).map(f => `<b>${f}</b>`).join(", ") || "nothing";
+  const when = new Date((ev.at || 0) * 1000).toLocaleTimeString();
+
+  const row = (s) => `
+    <div class="seat v-${s.verdict}">
+      <i class="dot2"></i>
+      <div class="who">${s.says}
+        ${s.reason ? `<div class="why">${s.reason}</div>` : ""}
+        ${s.next ? `<div class="nxt">do this next: ${s.next}</div>` : ""}
+      </div>
+      <span class="dom">${s.domain}</span>
+    </div>`;
+
+  const counts = {};
+  seats.forEach(s => counts[s.verdict] = (counts[s.verdict] || 0) + 1);
+  const tally = ["halt","note","skip","clear"]
+    .filter(v => counts[v]).map(v => `${counts[v]} ${v}`).join(" &middot; ");
+
+  $("livebody").innerHTML = `
+    <div class="panel">
+      <div class="eyebrow">${when} &middot; ${seats.length} rules looked &middot; ${tally}</div>
+      <div class="files">changed: ${files}</div>
+      ${halted.length
+        ? `<div style="border-left:2px solid var(--ver);padding-left:14px;margin-bottom:16px">
+             ${halted.map(row).join("")}</div>`
+        : `<div class="files" style="color:var(--grn)">nothing objects.</div>`}
+      ${seats.filter(s => s.verdict !== "halt").map(row).join("")}
+    </div>`;
 }
 
 // ---------- docket ----------
