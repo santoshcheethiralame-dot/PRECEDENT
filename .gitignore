@@ -8,3 +8,4 @@ bench/*.db
 .live/
 web/data.json
 web/report.json
+web/sprites/_inspect.png

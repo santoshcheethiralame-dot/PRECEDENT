@@ -36,8 +36,8 @@ def test_restore_refuses_to_write_inside_a_seed():
         restore(SEEDS / "clinic", SEEDS / "clinic" / "sub" / "dir")
 
 
-TOP_LEVEL = {".gitignore", "README.md", "bench", "install.sh", "plugin",
-             "precedent", "seeds", "tests", "web"}
+TOP_LEVEL = {".gitignore", "README.md", "bench", "docs", "install.sh",
+             "plugin", "precedent", "seeds", "tests", "web"}
 
 
 def test_no_stray_directory_has_been_committed_at_the_repo_root():
