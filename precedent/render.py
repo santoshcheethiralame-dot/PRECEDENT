@@ -18,6 +18,9 @@ def _c(s: str, code: str) -> str:
 
 
 def _row(text: str, code: str = "", pad: int = 2) -> str:
+    room = W - 2 - pad
+    if len(text) > room:                       # a long line must not break the box
+        text = text[:room - 1] + "…"
     body = " " * pad + text
     fill = " " * max(0, W - 2 - len(body))
     return f"{_c('|', VER)}{_c(body, code) if code else body}{fill}{_c('|', VER)}"
@@ -27,8 +30,13 @@ def halt_card(v, number: int | None = None) -> str:
     n = number if number is not None else v.holding_id
     when = time.strftime("%d %b %Y", time.localtime(v.established)).upper()
     e = v.empanel or {}
-    receipt = f"empanelled {e.get('fire','?')} fire  {e.get('false','?')} false" \
-              f"    cited {v.cited}    overruled never"
+    if e.get("tested"):
+        receipt = (f"empanelled {e.get('fire','?')} fire  {e.get('false','?')} false"
+                   f"    cited {v.cited}")
+    else:
+        # A rule mined from history has no failing case to replay, and "0/0"
+        # would imply it was tested and came back clean.
+        receipt = f"mined from history, not empanelled    cited {v.cited}"
     top = _c("+" + "-" * (W - 2) + "+", VER)
     sep = _c("+" + "-" * (W - 2) + "+", VER)
     return "\n".join([
