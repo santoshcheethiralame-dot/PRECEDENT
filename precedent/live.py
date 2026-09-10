@@ -114,9 +114,18 @@ def setup(seed: Path, repo: Path) -> dict:
     plugins = repo / ".opencode" / "plugins"
     plugins.mkdir(parents=True, exist_ok=True)
     shutil.copy2(ROOT / "plugin" / "precedent.ts", plugins / "precedent.ts")
+    # `edit: allow` on its own permits editing ANY absolute path, and with bash
+    # the agent can walk up and find this repository - which is exactly what it
+    # did: editing seeds/clinic and writing a migrations/ directory at the root
+    # while the recorder watched an untouched workspace. Deny anything outside.
     (repo / "opencode.json").write_text(json.dumps({
         "$schema": "https://opencode.ai/config.json",
-        "permission": {"edit": "allow", "bash": "allow", "webfetch": "deny"},
+        "permission": {
+            "edit": "allow",
+            "bash": "allow",
+            "webfetch": "deny",
+            "external_directory": "deny",
+        },
     }, indent=2), encoding="utf-8")
     (repo / "AGENTS.md").write_text(AGENTS_MD, encoding="utf-8")
 
