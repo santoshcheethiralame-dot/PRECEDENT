@@ -129,10 +129,12 @@ def cmd_bench(a) -> int:
 
     arms = tuple(x.strip() for x in a.arms.split(",") if x.strip())
     seeds = tuple(int(x) for x in a.seeds.split(",") if x.strip())
-    if "B" in arms and not __import__("precedent.provider", fromlist=["available"]).available():
-        print("arm B needs a real model - its mechanism is whether one obeys prose. skipping it.")
+    if "B" in arms and not getattr(a, "live", False):
+        print("arm B is only meaningful with --live: its mechanism is whether a MODEL")
+        print("obeys prose, and a scripted agent never reads the system prompt. skipping it.")
         arms = tuple(x for x in arms if x != "B")
-    rep = bench_main(arms=arms, seeds=seeds, p_recall=a.recall)
+    rep = bench_main(arms=arms, seeds=seeds, p_recall=a.recall,
+                     live=getattr(a, 'live', False))
     print()
     print(f"  {rep['runs']} runs, {rep['tasks']} tasks, {len(rep['seeds'])} seeds, "
           f"agent={rep['agent']}, p_recall={rep['p_recall']}")
@@ -184,6 +186,8 @@ def main(argv=None) -> int:
     b.add_argument("--arms", default="A,C")
     b.add_argument("--seeds", default="1,2,3,4,5")
     b.add_argument("--recall", type=float, default=0.5)
+    b.add_argument("--live", action="store_true",
+                   help="let the model drive every step instead of a scripted agent")
     b.add_argument("--compliance", action="store_true",
                    help="sweep how much depends on the agent obeying the card")
     b.set_defaults(fn=cmd_bench)

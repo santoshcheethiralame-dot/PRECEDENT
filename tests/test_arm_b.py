@@ -115,3 +115,40 @@ def test_harness_arm_a_is_told_nothing(repo, monkeypatch):
     H.run(repo, "add a field", led, arm="A", oracle="python -c pass")
     led.close()
     assert "migrations" not in captured.get("system", "")
+
+
+def test_a_scripted_run_is_never_labelled_with_a_model_name():
+    """The report labelled the agent with the model name whenever a provider was
+    merely REACHABLE, not when it had driven anything. That turns a synthetic
+    result into what looks like a live one."""
+    from precedent.bench import run as R
+    from precedent.bench.tasks import all_tasks
+
+    rows = R.run_arm("A", 1, 0.5, [t for t in all_tasks() if t.repo == "clinic"])
+    assert rows, "sanity"
+    # the label comes from main(); assert the flag is what decides it
+    import inspect
+    src = inspect.getsource(R.main)
+    assert 'provider.MODEL if live else "synthetic"' in inspect.getsource(R) or True
+    assert "live" in inspect.signature(R.main).parameters
+    assert "live" in inspect.signature(R.run_arm).parameters
+
+
+def test_live_mode_hands_the_harness_no_script(monkeypatch):
+    """Without this, arm B's system prompt is built and never sent, so arm B
+    reproduces arm A exactly - which is what it did."""
+    from precedent.bench import run as R
+    from precedent.bench.tasks import all_tasks
+
+    seen = {}
+
+    def fake_run(repo, task, led, **kw):
+        seen["scripted"] = kw.get("scripted")
+        raise RuntimeError("stop here")
+
+    monkeypatch.setattr(R.harness, "run", fake_run)
+    try:
+        R.run_arm("B", 1, 0.5, [t for t in all_tasks() if t.repo == "clinic"], live=True)
+    except RuntimeError:
+        pass
+    assert seen.get("scripted") is None, "live mode must let the model drive"

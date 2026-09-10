@@ -28,7 +28,8 @@ def _learn(led: Ledger, res, repo: Path, output: str) -> dict:
                             Change.since(repo, res.before, res.commands), use_model=False)
 
 
-def run_arm(arm: str, seed: int, p_recall: float, tasks, p_comply: float = 1.0) -> list[dict]:
+def run_arm(arm: str, seed: int, p_recall: float, tasks, p_comply: float = 1.0,
+            live: bool = False) -> list[dict]:
     """p_comply is the probability that a blocked agent does what the card asked.
 
     At 1.0 the harness hands the agent the exact companion it skipped, so the
@@ -48,6 +49,10 @@ def run_arm(arm: str, seed: int, p_recall: float, tasks, p_comply: float = 1.0) 
         repo = base / task.repo
         restore(SEEDS / task.repo, repo)
         actions, skipped = agent.script(task, rng, p_recall)
+        if live:
+            # Hand the harness nothing, so it calls the model for every step.
+            # This is the only path where arm B's prose is actually sent.
+            actions = None
 
         cb = None
         if arm == "C":
@@ -55,7 +60,8 @@ def run_arm(arm: str, seed: int, p_recall: float, tasks, p_comply: float = 1.0) 
                   agent.repair(t, s, verdicts, comply=rng.random() < p_comply))
 
         res = harness.run(repo, task.id, led, arm=arm, oracle=ORACLE,
-                          scripted=list(actions), on_block=cb, seed=seed)
+                          scripted=list(actions) if actions is not None else None,
+                          on_block=cb, seed=seed)
         if arm in ("B", "C"):
             if not res.passed:
                 _learn(led, res, repo, "")
@@ -154,18 +160,23 @@ def regressions(rows: list[dict]) -> list[dict]:
 
 
 def main(arms=("A", "C"), seeds=(1, 2, 3, 4, 5), p_recall: float = 0.5,
-         out: Path | None = None) -> dict:
+         out: Path | None = None, live: bool = False) -> dict:
+    if live and not provider.available():
+        raise RuntimeError("--live needs a reachable model; none answered")
     tasks = all_tasks()
     rows: list[dict] = []
     t0 = time.time()
     for arm in arms:
         for seed in seeds:
-            rows += run_arm(arm, seed, p_recall, tasks)
+            rows += run_arm(arm, seed, p_recall, tasks, live=live)
             print(f"  {arm}/{seed}  done", flush=True)
 
     report = {
         "generated": time.strftime("%Y-%m-%d %H:%M"),
-        "agent": "synthetic" if not provider.available() else provider.MODEL,
+        # Label what ACTUALLY drove the run. Reporting the model name because a
+        # provider happened to be reachable turns a synthetic result into what
+        # looks like a live one, which is worse than having no result.
+        "agent": provider.MODEL if live else "synthetic",
         "p_recall": p_recall,
         "arms": list(arms), "seeds": list(seeds),
         "tasks": len(tasks), "runs": len(rows), "seconds": round(time.time() - t0, 1),
