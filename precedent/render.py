@@ -20,7 +20,7 @@ def _c(s: str, code: str) -> str:
 def _row(text: str, code: str = "", pad: int = 2) -> str:
     room = W - 2 - pad
     if len(text) > room:                       # a long line must not break the box
-        text = text[:room - 1] + "…"
+        text = text[:room - 3] + "..."
     body = " " * pad + text
     fill = " " * max(0, W - 2 - len(body))
     return f"{_c('|', VER)}{_c(body, code) if code else body}{fill}{_c('|', VER)}"
@@ -67,6 +67,13 @@ def halt_card(v, number: int | None = None, repo=None,
         _row(""),
         _row(receipt, DIM),
     ] + step + [top])
+
+
+def note_line(v) -> str:
+    """Advisory. Said once, plainly, and it does not stop anything."""
+    head = f"  {_c('note', AMB)}  {v.says}"
+    body = f"        {_c(v.reason, DIM)}"
+    return head + chr(10) + body
 
 
 def clear_line() -> str:

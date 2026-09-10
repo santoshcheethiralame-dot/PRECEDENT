@@ -49,6 +49,26 @@ def advisories(led: Ledger, repo: str) -> list[dict]:
     return led.holdings(repo=repo, status="persuasive")
 
 
+def firing_advice(led: Ledger, repo: str, ch: Change) -> list[Verdict]:
+    """Advisory holdings that actually fire on this tree.
+
+    These never change the exit code. But a rule nobody sees until it is
+    binding teaches nobody anything - someone who just deleted a test should be
+    told, and then left to decide.
+    """
+    out = []
+    for h in led.holdings(repo=repo, status="persuasive"):
+        reason = templates.fires(h["template"], h["params"], ch)
+        if reason:
+            out.append(Verdict(
+                holding_id=h["id"], case_id=h["case_id"], says=h["says"],
+                rule=templates.render(h["template"], h["params"]), reason=reason,
+                template=h["template"], cited=len(led.citations(h["id"])),
+                empanel=h["empanel"], established=h["established"],
+            ))
+    return out
+
+
 def check(repo: Path, led: Ledger | None = None) -> tuple[list[Verdict], Change]:
     from .db import ledger_path
     repo = Path(repo).resolve()

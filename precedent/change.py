@@ -22,7 +22,8 @@ def _git(repo: Path, *args: str) -> str:
 class Change:
     repo: Path
     touched: list[str] = field(default_factory=list)          # repo-relative, forward slashes
-    added: dict[str, list[str]] = field(default_factory=dict)  # path -> added lines
+    added: dict[str, list[str]] = field(default_factory=dict)    # path -> added lines
+    removed: dict[str, list[str]] = field(default_factory=dict)  # path -> removed lines
     commands: list[str] | None = None   # None means "we could not see them"
 
     def text(self, path: str) -> str:
@@ -47,6 +48,7 @@ class Change:
         touched = sorted(n for n in (x.replace("\\", "/") for x in names) if not _ours(n))
 
         added: dict[str, list[str]] = {}
+        removed: dict[str, list[str]] = {}
         current = None
         for line in _git(repo, "diff", "HEAD", "-U0").splitlines():
             if line.startswith("+++ b/"):
@@ -55,15 +57,18 @@ class Change:
                     current = None
                     continue
                 added.setdefault(current, [])
+                removed.setdefault(current, [])
             elif line.startswith("+") and not line.startswith("+++") and current:
                 added[current].append(line[1:])
+            elif line.startswith("-") and not line.startswith("---") and current:
+                removed[current].append(line[1:])
         # untracked files are entirely "added"
         tracked = {x for x in _git(repo, "ls-files").splitlines()}
         for t in touched:
             if t not in tracked and t not in added:
                 added[t] = (repo / t).read_text(encoding="utf-8", errors="replace").splitlines() \
                     if (repo / t).is_file() else []
-        return cls(repo=repo, touched=touched, added=added)
+        return cls(repo=repo, touched=touched, added=added, removed=removed)
 
     @classmethod
     def snapshot(cls, repo: Path) -> dict[str, str]:
@@ -77,15 +82,19 @@ class Change:
               commands: list[str] | None = None) -> "Change":
         """Everything that changed, including work a command did on the agent's behalf."""
         now = cls.snapshot(repo)
-        touched, added = [], {}
+        touched, added, removed = [], {}, {}
         for path, text in now.items():
             if before.get(path) == text:
                 continue
             touched.append(path)
-            old = set(before.get(path, "").splitlines())
-            added[path] = [ln for ln in text.splitlines() if ln not in old]
+            old_lines = before.get(path, "").splitlines()
+            new_lines = text.splitlines()
+            old_set, new_set = set(old_lines), set(new_lines)
+            added[path] = [ln for ln in new_lines if ln not in old_set]
+            removed[path] = [ln for ln in old_lines if ln not in new_set]
         touched += [p for p in before if p not in now]
-        return cls(repo=Path(repo), touched=sorted(touched), added=added, commands=commands)
+        return cls(repo=Path(repo), touched=sorted(touched), added=added,
+                   removed=removed, commands=commands)
 
     @classmethod
     def from_edits(cls, repo: Path, edits: dict[str, str]) -> "Change":

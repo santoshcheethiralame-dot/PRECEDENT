@@ -16,6 +16,16 @@ def _rule_text(h: dict) -> str:
 
 
 def cmd_init(a) -> int:
+    pack = [] if getattr(a, "no_pack", False) else verbs.install_pack(Path(a.path))
+    if pack:
+        binding = sum(1 for r in pack if r["binding"])
+        print()
+        print(f"  {len(pack)} common-mistake rules installed "
+              f"({binding} binding, {len(pack) - binding} advisory):")
+        print()
+        for r in pack:
+            mark = "BINDING " if r["binding"] else "advisory"
+            print(f"  {str(r['id']).rjust(3)}  {mark}  {r['says']}")
     found = verbs.init(Path(a.path))
     if not found:
         state = mine.history_state(Path(a.path))
@@ -132,6 +142,8 @@ def cmd_hook(a) -> int:
 
 def register(sub) -> None:
     i = sub.add_parser("init", help="learn this repo's habits from its own history")
+    i.add_argument("--no-pack", action="store_true",
+                   help="skip the common-mistake rules, mine history only")
     i.add_argument("path", nargs="?", default=".")
     i.set_defaults(fn=cmd_init)
 

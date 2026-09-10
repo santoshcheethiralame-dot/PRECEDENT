@@ -21,6 +21,7 @@ def cmd_gate(a) -> int:
     ch = Change.from_git(Path(repo))
     from . import transfer
     verdicts = gate.evaluate(led, repo, ch, borrowed=transfer.borrowed(repo))
+    notes = gate.firing_advice(led, repo, ch)
     if verdicts:
         # Record that it fired. Without this a person who only ever uses the CLI
         # sees "0 mistakes stopped" forever, which is both wrong and the exact
@@ -34,8 +35,13 @@ def cmd_gate(a) -> int:
     elif verdicts:
         for v in verdicts:
             print(render.halt_card(v, repo=repo, touched=ch.touched))
+        for n in notes:
+            print(render.note_line(n))
     else:
-        print(render.clear_line())
+        for n in notes:
+            print(render.note_line(n))
+        if not notes:
+            print(render.clear_line())
     return 1 if verdicts else 0
 
 

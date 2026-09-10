@@ -19,6 +19,38 @@ from . import empanel, mine, templates
 # ---------------------------------------------------------------- init --------
 
 
+def install_pack(repo: Path) -> list[dict]:
+    """The failures every agent makes, installed before the first one happens.
+
+    Unambiguous patterns bind; the rest inform. A person should not have to leak
+    a key once to learn that the tool could have caught it.
+    """
+    from . import packs
+
+    repo = Path(repo).resolve()
+    led = Ledger(ledger_path(repo))
+    existing = {(h["template"], json.dumps(h["params"], sort_keys=True))
+                for h in led.holdings(repo=str(repo))}
+
+    out = []
+    for r in packs.applicable(repo) + packs.manifest_pairs(repo):
+        params = ({"regex": r["regex"], "glob": r["glob"]}
+                  if "regex" in r else {"trigger": r["trigger"], "required": r["required"]})
+        key = (r["template"], json.dumps(params, sort_keys=True))
+        if key in existing:
+            continue
+        run_id = led.open_run(str(repo), f"precedent pack: {r['key']}", arm="pack")
+        led.close_run(run_id, "pass")
+        case_id = led.file_case(run_id, str(repo), "pack", "high", r["says"], [],
+                                json.dumps({"pack": r["key"]}))
+        hid = led.establish(case_id, str(repo), r["template"], params, r["says"],
+                            status="binding" if r["binding"] else "persuasive",
+                            empanel={"pack": r["key"]})
+        out.append({**r, "id": hid, "params": params})
+    led.close()
+    return out
+
+
 def init(repo: Path, limit: int = 600) -> list[dict]:
     """Everything this repository can tell us before anything has gone wrong.
 
