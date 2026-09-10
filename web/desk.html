@@ -93,15 +93,21 @@
      Ruled stock with a red margin and punched holes, butted straight up
      against the floor so the page reads as one continuous place rather than
      a scene with a list underneath it. */
-  /* Width is set from the room at boot so the summary starts exactly where the
-     bookcase does, instead of floating in the middle of the page. */
-  .ledger{margin:0 auto;padding:0;position:relative;top:-4px}
+  /* The summary is a strip fixed to the bottom edge of the room, spanning its
+     full width, so it reads as part of the wall rather than a card left lying
+     on the floorboards. */
+  .ledger{margin:0 auto;padding:0;position:relative;top:-8px}
   /* One long list of seventeen rules is a wall of text. It folds. */
-  #ledgerfold summary{display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;
+  #ledgerfold summary{display:flex;align-items:center;gap:12px;flex-wrap:wrap;
                       list-style:none;cursor:pointer;user-select:none;
-                      background:var(--paper);border:4px solid var(--ink);
-                      box-shadow:5px 5px 0 rgba(74,56,46,.22);
-                      padding:10px 18px;margin:18px 0 14px}
+                      background:var(--wood);border:4px solid var(--ink);
+                      border-left:0;border-right:0;
+                      box-shadow:0 6px 0 rgba(74,56,46,.22);
+                      padding:12px 22px;margin:0 0 16px;color:var(--paper)}
+  #ledgerfold summary h2{color:var(--paper)}
+  #ledgerfold summary .hint{color:#E7D2BB}
+  #ledgerfold summary:hover h2{color:var(--amber)}
+  .chev{border-left-color:var(--paper)}
   #ledgerfold summary::-webkit-details-marker{display:none}
   #ledgerfold summary:hover h2{color:#8C5938}
   .chev{width:0;height:0;border-left:9px solid var(--ink);
@@ -195,7 +201,7 @@ const SERVICE = new URLSearchParams(location.search).get("service") || "http://1
 // on anything narrower than 1600px.
 let PX = 4;
 function chooseScale(){
-  const fit = Math.floor((window.innerWidth - 24) / 420);
+  const fit = Math.floor((window.innerWidth - 24) / 350);
   PX = Math.max(2, Math.min(4, fit));
 }
 chooseScale();
@@ -205,33 +211,33 @@ chooseScale();
 // clerkCut is how far down the clerk the desk edge falls. At 46 it cut the
 // belt and he read as STANDING behind a low desk; a seated person meets the
 // desk around mid-chest.
-const ROOM = { w: 420, h: 224, deskTop: 140, clerkCut: 42, floorTop: 158 };
+// Narrower than it looks: a 420-wide room forced the scale down to 3 and the
+// centrepiece shrank with it. At 340 the same screen fits scale 4.
+const ROOM = { w: 350, h: 226, deskTop: 140, clerkCut: 42, floorTop: 158 };
 
 const LAYOUT = [
-  // The bookcase HUGS the wall: its base sits on the wall/floor junction and
-  // its top lines up with the window and the notice board. Standing it out on
-  // the boards made it look like it had been shoved into the middle of the room.
-  // Base 8px onto the floorboards. Flush with the wall/floor junction it read
-  // as a painting hung on the bricks rather than furniture standing in a room.
-  { piece: "bookcase",  x: 18,  y: 18,  layer: "back" },   //  18 + 148 = 166
-  { piece: "window",    x: 160, y: 14,  layer: "back" },
-  { piece: "corkboard", x: 262, y: 12,  layer: "back", id: "sprite-cork" },
+  // Three big pieces have to share 350: bookcase 104, desk 168, cabinet 60.
+  // Every x below is chosen so none of them touch - the desk and the lamp were
+  // overlapping the bookcase when the room was 10px narrower.
+  { piece: "bookcase",  x: 2,   y: 18,  layer: "back" },   //   2..106
+  { piece: "window",    x: 128, y: 14,  layer: "back" },
+  { piece: "corkboard", x: 228, y: 12,  layer: "back", id: "sprite-cork" },
 
-  { piece: "cabinet",   x: 350, y: 98,  layer: "back", go: "#docket",
+  { piece: "cabinet",   x: 288, y: 100, layer: "back", go: "#docket",
     title: "the docket", id: "sprite-cabinet" },
-  { piece: "chair",     x: 201, y: 118, layer: "back" },
-  { piece: "rug",       x: 150, y: 184, layer: "back" },
+  { piece: "chair",     x: 167, y: 116, layer: "back" },
+  { piece: "rug",       x: 114, y: 186, layer: "back" },
 
-  // desk and what sits on it
-  { piece: "desk",      x: 150, y: 140, layer: "front" },
-  { piece: "lamp",      x: 156, y: 93,  layer: "front" },   //  93 + 48 = 141
-  { piece: "mug",       x: 232, y: 123, layer: "front" },   // 123 + 18 = 141
-  { piece: "intray",    x: 254, y: 121, layer: "front" },   // 121 + 20 = 141
-  { piece: "papers",    x: 257, y: 113, layer: "front", id: "sprite-papers" },
+  // the centrepiece
+  { piece: "desk",      x: 114, y: 140, layer: "front" },   // 114..282
+  { piece: "lamp",      x: 120, y: 92,  layer: "front" },   //  92 + 48 = 140
+  { piece: "mug",       x: 204, y: 118, layer: "front" },   // 118 + 22 = 140
+  { piece: "intray",    x: 228, y: 116, layer: "front" },   // 116 + 24 = 140
+  { piece: "papers",    x: 232, y: 106, layer: "front", id: "sprite-papers" },
 
-  // floor: one either side of the desk, so nothing overlaps anything
-  { piece: "bin",       x: 74,  y: 192, layer: "front" },   // 192 + 28 = 220
-  { piece: "plant",     x: 306, y: 176, layer: "front" },   // 176 + 44 = 220
+  // floor, clear of everything above
+  { piece: "bin",       x: 44,  y: 194, layer: "front" },   // 194 + 28 = 222
+  { piece: "plant",     x: 292, y: 178, layer: "front" },   // 178 + 44 = 222
 ];
 
 let OFFICE = null, CLERK = null, clerkTimer = null, clerkQueued = null;
@@ -261,7 +267,7 @@ function mountClerk(meta, stage){
   el.className = "sprite";
   el.id = "clerk";
   // Centred behind the desk (140..288) and in front of the chair at 183.
-  el.style.cssText = `left:${206 * PX}px; top:${(ROOM.deskTop - ROOM.clerkCut) * PX}px;
+  el.style.cssText = `left:${174 * PX}px; top:${(ROOM.deskTop - ROOM.clerkCut) * PX}px;
     width:${meta.frame.w * PX}px; height:${meta.frame.h * PX}px;
     background-image:url("sprites/clerk.png");
     background-size:auto ${meta.frame.h * PX}px;`;

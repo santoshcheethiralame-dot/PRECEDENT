@@ -71,28 +71,35 @@ def floor(cv: Canvas):
 
 # ---- the desk ------------------------------------------------------------
 
-@piece("desk", 148, 50)
+@piece("desk", 168, 56)
 def desk(cv: Canvas):
-    """Front view: top, apron, two drawer banks, four legs."""
-    cv.box(0, 0, 147, 6, "W1", "W3", "W2")
-    cv.grain(2, 2, 145, 5, "W2", step=2)
-    cv.box(4, 7, 143, 12, "W2", "W1", "W4")
+    """The centrepiece, so it gets the detail: an overhanging top, a centre
+    drawer over the knee hole, two banks of three, and a modesty panel."""
+    cv.box(0, 0, 167, 8, "W1", "W3", "W2")           # top, overhanging
+    cv.grain(2, 2, 165, 6, "W2", step=2)
+    cv.hline(1, 166, 7, "W4")                        # the lip under the edge
+    cv.box(5, 9, 162, 15, "W2", "W1", "W4")          # apron
 
-    for (bx0, bx1) in ((6, 54), (102, 141)):
-        cv.box(bx0, 13, bx1, 40, "W1", "W3", "W2")
-        for y in (15, 24, 33):
-            cv.box(bx0 + 3, y, bx1 - 3, y + 6, "W2", "W1", "W4")
-            cv.grain(bx0 + 4, y + 1, bx1 - 4, y + 5, "W4", step=3)
+    # centre drawer, over the knee hole
+    cv.box(58, 16, 110, 25, "W1", "W3", "W2")
+    cv.grain(60, 18, 108, 23, "W2", step=3)
+    cv.box(77, 19, 91, 22, "C", "H", "c")
+
+    for (bx0, bx1) in ((6, 56), (112, 161)):
+        cv.box(bx0, 16, bx1, 46, "W1", "W3", "W2")
+        for y in (18, 28, 38):
+            cv.box(bx0 + 3, y, bx1 - 3, y + 7, "W2", "W1", "W4")
+            cv.grain(bx0 + 4, y + 1, bx1 - 4, y + 6, "W4", step=3)
             mx = (bx0 + bx1) // 2
-            cv.box(mx - 5, y + 2, mx + 5, y + 4, "C", "H", "c")
+            cv.box(mx - 7, y + 2, mx + 7, y + 5, "C", "H", "c")
 
-    cv.rect(56, 13, 100, 40, "W4")
-    cv.frame(56, 13, 100, 40, "K")
-    cv.dither(57, 14, 99, 22, "W2")
+    cv.rect(58, 26, 110, 46, "W4")                   # knee hole, in shadow
+    cv.frame(58, 26, 110, 46, "K")
+    cv.dither(59, 27, 109, 33, "W2")
 
-    for x in (6, 48, 102, 137):
-        cv.box(x, 40, x + 5, 48, "W2", "W1", "W4")
-    cv.shadow(4, 49, 143, 49, "F2")
+    for x in (6, 50, 112, 156):                      # legs
+        cv.box(x, 46, x + 6, 54, "W2", "W1", "W4")
+    cv.shadow(4, 55, 163, 55, "F2")
 
 
 @piece("cabinet", 60, 96)
@@ -256,20 +263,21 @@ def lamp(cv: Canvas):
     cv.shadow(5, 47, 24, 47, "W2")
 
 
-@piece("papers", 36, 22)
+@piece("papers", 42, 26)
 def papers(cv: Canvas):
-    for (dx, dy) in ((0, 5), (2, 3), (4, 0)):
-        cv.box(dx, dy, dx + 29, dy + 15, "P1", None, "P2")
-    for y in (4, 7, 10, 13):
-        cv.hline(9, 30, y, "P3")
+    for (dx, dy) in ((0, 6), (3, 3), (6, 0)):
+        cv.box(dx, dy, dx + 34, dy + 18, "P1", None, "P2")
+    for y in (5, 9, 13, 17):
+        cv.hline(11, 36, y, "P3")
 
 
-@piece("intray", 42, 20)
+@piece("intray", 50, 24)
 def intray(cv: Canvas):
-    cv.box(0, 7, 41, 19, "M1", "M3", "M2")
-    cv.vline(0, 0, 7, "K")
-    cv.vline(41, 0, 7, "K")
-    cv.hline(0, 41, 0, "K")
+    cv.box(0, 9, 49, 23, "M1", "M3", "M2")
+    cv.dither(2, 18, 47, 22, "M2")
+    cv.vline(0, 0, 9, "K")
+    cv.vline(49, 0, 9, "K")
+    cv.hline(0, 49, 0, "K")
 
 
 @piece("outtray", 42, 20)
@@ -280,13 +288,13 @@ def outtray(cv: Canvas):
     cv.hline(0, 41, 0, "K")
 
 
-@piece("mug", 18, 18)
+@piece("mug", 22, 22)
 def mug(cv: Canvas):
-    cv.box(1, 4, 12, 17, "P1", None, "P2")
-    cv.rect(3, 6, 10, 8, "W4")
-    cv.hline(3, 10, 6, "W2")
-    cv.box(13, 8, 16, 13, "P1", None, "P2")
-    cv.rect(14, 10, 15, 11, "N")
+    cv.box(1, 5, 15, 21, "P1", None, "P2")
+    cv.rect(3, 7, 13, 10, "W4")
+    cv.hline(3, 13, 7, "W2")
+    cv.box(16, 10, 20, 16, "P1", None, "P2")
+    cv.rect(17, 12, 19, 14, "N")
 
 
 @piece("plant", 30, 44)
