@@ -1,185 +1,185 @@
 <!doctype html>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Precedent — the desk</title>
-<link rel="stylesheet" href="office.css">
 <style>
+  /* Light, warm, and lit from the upper left. Tokens match
+     precedent/art/clerk.py so the page and the sprites cannot drift. */
+  :root{
+    --mortar:#E8DCCA; --brick:#CE9A7C; --brick-dk:#B88266;
+    --board:#C9A27A;  --board-dk:#B28862;
+    --wood:#B0764C;   --wood-dk:#8C5938; --wood-deep:#6E442B;
+    --sage:#9FB08F;   --sage-dk:#82936F;
+    --paper:#FDF6E7;  --paper-2:#EADDC4; --paper-3:#D3C2A4;
+    --ink:#4A382E;    --ink-soft:#6B5546;
+    --phos:#5FC18A;   --amber:#F0B44E;   --coral:#E06B63;
+    --px:4;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--mortar);color:var(--ink);
+       font:14px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;
+       -webkit-font-smoothing:antialiased}
+
   header{display:flex;align-items:center;justify-content:space-between;gap:16px;
-         padding:14px 22px;border-bottom:3px solid var(--line);flex-wrap:wrap}
-  .wm{font:400 19px/1 Georgia,serif}
-  .wm b{color:var(--stamp);font-weight:400}
-  .status{display:flex;align-items:center;gap:9px;color:var(--dim)}
-  .status .lamp{width:8px;height:8px;border-radius:50%;background:var(--dim)}
-  .status.live .lamp{background:var(--phos)}
-  .status.halt .lamp{background:var(--stamp)}
+         padding:13px 24px;background:var(--paper);
+         border-bottom:4px solid var(--wood-dk);flex-wrap:wrap}
+  .wm{font:400 20px/1 Georgia,serif;color:var(--ink)}
+  .wm b{color:var(--coral);font-weight:400}
+  .status{display:flex;align-items:center;gap:9px;color:var(--ink-soft);font-size:13px}
+  .status .bulb{width:10px;height:10px;border-radius:50%;background:#C3B7A6;
+                border:2px solid var(--ink)}
+  .status.live .bulb{background:var(--phos)}
+  .status.halt .bulb{background:var(--coral)}
 
-  main{padding:20px 22px 40px;max-width:1180px;margin:0 auto}
+  main{max-width:1400px;margin:0 auto;padding:0 0 44px}
 
-  /* the room */
-  #stage{width:1280px;height:800px}
-  /* A floor, so the furniture stands on something instead of hanging in the
-     dark. The skirting line is where the wall stops. */
-  #floor{position:absolute;left:0;right:0;bottom:0;
-         background:#1C1620;border-top:4px solid var(--line)}
-  @media (max-width:1240px){ #stage{transform-origin:top left} }
+  /* ---- the room ---- */
+  .stage{position:relative;margin:0 auto;image-rendering:pixelated;overflow:hidden}
+  #wall,#floor{position:absolute;left:0;right:0;image-rendering:pixelated}
+  #wall{top:0}
+  #floor{bottom:0;border-top:4px solid var(--wood-deep)}
+  .sprite{position:absolute;image-rendering:pixelated;background-repeat:no-repeat}
+  .sprite.clickable{cursor:pointer}
+  .sprite.clickable:hover{filter:brightness(1.08) saturate(1.1)}
 
-  /* the halt card slides out from under the stamp */
-  /* Clear of the cabinet above and the plant across the room, so the one
-     thing carrying weight on this page is never partly hidden. */
-  /* It lands on the desk in front of the clerk, which is where a stamped card
-     would actually go, and where nothing else is competing for the space. */
-  #halt{position:absolute;left:268px;top:522px;width:408px;display:none;z-index:5}
-  #halt.on{display:block;animation:slide .28s steps(4) both}
-  @keyframes slide{from{transform:translate(-22px,10px);opacity:0}to{transform:none;opacity:1}}
+  /* Pips, not words. Each drawer shows its count as marks so the room stays
+     free of text - a label a sprite cannot change does not belong on it. */
+  .pips{position:absolute;display:flex;gap:3px;align-items:center;z-index:4;
+        pointer-events:none}
+  .pips i{width:5px;height:5px;border-radius:50%;background:var(--ink);
+          box-shadow:0 0 0 1px rgba(255,255,255,.5)}
+  .pips.none i{background:transparent;box-shadow:inset 0 0 0 1px var(--ink-soft)}
+
+  #chartline{position:absolute;z-index:4;pointer-events:none}
+
+  /* the lamp actually lights the desk, and the pool takes the verdict colour */
+  #pool{position:absolute;border-radius:50%;pointer-events:none;z-index:1}
+
+  /* ---- the stamped card ---- */
+  #halt{position:absolute;display:none;z-index:6;
+        background:var(--paper);border:4px solid var(--ink);
+        box-shadow:6px 6px 0 rgba(74,56,46,.22);padding:14px 16px}
+  #halt.on{display:block;animation:slide .24s steps(3) both}
+  @keyframes slide{from{transform:translate(-14px,8px)}to{transform:none}}
   #halt .no{font-family:ui-monospace,Consolas,monospace;font-size:10px;
-            letter-spacing:.18em;color:var(--stamp)}
-  #halt .says{font:400 17px/1.35 Georgia,serif;margin:6px 0 8px}
-  #halt .why,#halt .next{font-family:ui-monospace,Consolas,monospace;font-size:11px}
-  #halt .why{color:#6a5f52}
-  #halt .next{color:var(--ink);background:var(--amber);display:inline-block;
-              padding:3px 7px;margin-top:8px}
+            letter-spacing:.18em;color:var(--coral);text-transform:uppercase}
+  #halt .says{font:400 18px/1.35 Georgia,serif;margin:7px 0 9px}
+  #halt .why{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;
+             color:var(--ink-soft)}
+  #halt .next{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;
+              background:var(--amber);border:2px solid var(--ink);
+              display:inline-block;padding:4px 8px;margin-top:10px}
 
-  /* what landed on the desk */
-  /* Sprites are appended after this node, so without a z-index the paper stack
-     paints over the filenames and clips them. */
-  #incoming{position:absolute;left:700px;top:398px;width:260px;z-index:6;
-            font-family:ui-monospace,Consolas,monospace;font-size:11px;
-            color:var(--paper-dim);display:none;text-shadow:0 1px 0 var(--ink)}
+  #incoming{position:absolute;z-index:6;font-family:ui-monospace,Consolas,monospace;
+            font-size:11px;color:var(--ink);display:none;
+            background:var(--paper);border:3px solid var(--ink);padding:6px 9px;
+            box-shadow:4px 4px 0 rgba(74,56,46,.18)}
   #incoming.on{display:block}
-  #incoming b{color:var(--paper);font-weight:400;display:block}
+  #incoming b{font-weight:400;display:block}
 
-  /* Live data drawn INTO the furniture. A cabinet that does not show its own
-     counts is a picture of a cabinet. */
-  .overlay{position:absolute;font-family:ui-monospace,Consolas,monospace;
-           pointer-events:none;z-index:4}
-  .drawer-label{font-size:11px;letter-spacing:.06em;color:var(--ink);
-                display:flex;justify-content:space-between;align-items:center}
-  .drawer-label b{font-weight:400}
-  #chartbars{display:flex;align-items:flex-end;gap:6px;height:120px}
-  #chartbars div{flex:1;background:var(--dim);min-height:3px}
-  #chartbars div.clear{background:var(--phos)}
-  #chartbars div.note{background:var(--amber)}
-  #chartbars div.halt{background:var(--stamp)}
-  #charttitle{font-size:10px;color:#6a5f52;letter-spacing:.1em}
-  #clockface{font-size:10px;color:var(--ink);text-align:center}
-  #plate{font-size:11px;letter-spacing:.14em;color:var(--ink);text-align:center}
-
-  /* The lamp actually lights something, and the pool takes the colour of the
-     verdict. It is the only element on the page that changes the room. */
-  #pool{position:absolute;border-radius:50%;pointer-events:none;z-index:1;
-        transition:background .001s steps(1),opacity .001s steps(1)}
-
-  /* the panel of every rule that looked */
-  .ledger{margin-top:22px}
-  .ledger h2{font:400 17px/1.3 Georgia,serif;margin:0 0 3px}
-  .ledger .hint{color:var(--dim);font-size:12px;margin:0 0 14px}
-  .seat{display:flex;align-items:flex-start;gap:10px;padding:8px 12px;
-        border-bottom:1px solid var(--line);font-size:12.5px}
+  /* ---- the ledger, as paper on a desk ---- */
+  .ledger{max-width:1080px;margin:26px auto 0;padding:0 22px}
+  .ledger .head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
+                margin-bottom:12px}
+  .ledger h2{font:400 20px/1.3 Georgia,serif;margin:0}
+  .ledger .hint{color:var(--ink-soft);font-size:12.5px;
+                font-family:ui-monospace,Consolas,monospace}
+  .sheetpad{background:var(--paper);border:4px solid var(--ink);
+            box-shadow:7px 7px 0 rgba(74,56,46,.18);padding:4px}
+  .seat{display:flex;align-items:flex-start;gap:11px;padding:11px 14px;
+        border-bottom:2px solid var(--paper-2);font-size:13.5px}
   .seat:last-child{border-bottom:none}
-  .seat i{width:7px;height:7px;border-radius:50%;flex:none;margin-top:6px;background:#243040}
+  .seat i{width:9px;height:9px;border-radius:50%;flex:none;margin-top:5px;
+          background:#CFC3AF;border:2px solid var(--ink)}
   .seat .who{flex:1;min-width:0}
-  .seat .why{font-family:ui-monospace,Consolas,monospace;font-size:11px;
-             color:var(--dim);margin-top:3px}
-  .seat .dom{font-family:ui-monospace,Consolas,monospace;font-size:9px;
-             letter-spacing:.14em;text-transform:uppercase;color:var(--dim)}
-  .v-halt i{background:var(--stamp)}  .v-halt .who{color:var(--stamp)}
-  .v-note i{background:var(--amber)}  .v-note .who{color:var(--amber)}
-  .v-skip i{background:var(--dim)}
-  .v-clear .who{color:var(--dim)}
+  .seat .why{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;
+             color:var(--ink-soft);margin-top:4px}
+  .seat .dom{font-family:ui-monospace,Consolas,monospace;font-size:9.5px;
+             letter-spacing:.16em;text-transform:uppercase;color:#A2937F}
+  .v-halt{background:#FBEDEA}
+  .v-halt i{background:var(--coral)} .v-halt .who{color:#A83C33}
+  .v-note i{background:var(--amber)}
+  .v-skip i{background:#C3B7A6}
+  .v-clear .who{color:var(--ink-soft)}
 
-  .empty{border:3px dashed var(--line);border-radius:4px;padding:30px 24px;
-         text-align:center;max-width:560px;margin:14px auto}
-  .empty .big{font:400 18px/1.4 Georgia,serif;margin-bottom:9px}
-  .empty p{color:var(--dim);font-size:12.5px;margin:0 auto;max-width:52ch}
-  .empty code{background:var(--panel);padding:2px 6px;border:1px solid var(--line)}
+  .empty{border:4px dashed var(--wood-dk);padding:34px 26px;text-align:center;
+         max-width:600px;margin:0 auto;background:var(--paper)}
+  .empty .big{font:400 19px/1.4 Georgia,serif;margin-bottom:10px}
+  .empty p{color:var(--ink-soft);font-size:13px;margin:0 auto;max-width:52ch}
+  .empty code{background:var(--paper-2);padding:2px 7px;border:2px solid var(--paper-3)}
+
+  @media (prefers-reduced-motion:reduce){*{animation:none!important}}
 </style>
 
 <header>
   <div class="wm">Precedent<b>.</b></div>
-  <div class="status" id="status"><span class="lamp"></span><span id="statustext">no service</span></div>
+  <div class="status" id="status"><span class="bulb"></span><span id="statustext">no service</span></div>
 </header>
 
 <main>
   <div class="stage" id="stage">
+    <div id="wall"></div>
     <div id="floor"></div>
-    <div class="card" id="halt">
+    <div id="pool"></div>
+    <div id="halt">
       <div class="no" id="haltno"></div>
       <div class="says" id="haltsays"></div>
       <div class="why" id="haltwhy"></div>
       <div class="next" id="haltnext"></div>
     </div>
-    <div id="pool"></div>
     <div id="incoming"></div>
   </div>
 
   <div class="ledger">
-    <h2 id="ledgerhead">Nothing has been judged yet.</h2>
-    <p class="hint" id="ledgerhint">Every rule that looks at a change is listed here, including
-      the ones that look and say nothing.</p>
-    <div class="plate" id="seats" style="padding:6px 4px"></div>
+    <div class="head">
+      <h2 id="ledgerhead">Nothing has been judged yet.</h2>
+      <span class="hint" id="ledgerhint"></span>
+    </div>
+    <div class="sheetpad" id="seats"></div>
   </div>
 </main>
 
 <script>
 const SERVICE = new URLSearchParams(location.search).get("service") || "http://127.0.0.1:4000";
-const PX = 4;                       // integer scale for every sprite
+const PX = 4;
 
-// ---- the room ----------------------------------------------------------
-// x, y are logical pixels inside the room; JS multiplies by PX so the scene and
-// the sprite sheet can never disagree about scale.
-// The desk top surface sits at y=126. Anything ON the desk has its BOTTOM at
-// 127, or it looks sunk into the wood.
-//
-// CLERK_CUT is how far down the clerk the desk edge falls. At 46 the desk hides
-// it from the belt down, which is what sitting at a desk looks like. Anything
-// less and the clerk appears to be standing on the furniture - which is exactly
-// how the first version read.
-const ROOM = { w: 320, h: 200, deskTop: 126, clerkCut: 46, floorTop: 172 };
+// Logical room, multiplied by PX. Spacing is deliberate: an earlier pass put
+// six things on one wall and it read as clutter.
+const ROOM = { w: 340, h: 224, deskTop: 140, clerkCut: 46, floorTop: 158 };
 
-// `back` is painted before the clerk, `front` after, so the desk occludes the
-// lower body instead of the clerk floating on top of it.
-//
-// The wall runs left to right: ledgers, daylight, the chart, the clock. The
-// colour in this room comes from the book spines and the window - not from
-// tinting the furniture, which would just look like a filter.
 const LAYOUT = [
-  // --- wall ---
-  { piece: "shelf",   x: 6,   y: 14,  layer: "back" },
-  { piece: "window",  x: 110, y: 8,   layer: "back" },
-  { piece: "chart",   x: 196, y: 14,  layer: "back", go: "#ablation",
+  // wall
+  { piece: "shelf",   x: 20,  y: 24,  layer: "back" },
+  { piece: "window",  x: 140, y: 18,  layer: "back" },
+  { piece: "chart",   x: 240, y: 26,  layer: "back", go: "#ablation",
     title: "the evidence", id: "sprite-chart" },
-  { piece: "clock",   x: 282, y: 16,  layer: "back" },
-
-  // --- room ---
-  { piece: "cabinet", x: 254, y: 84,  layer: "back", go: "#docket",
+  // room
+  { piece: "cabinet", x: 262, y: 94,  layer: "back", go: "#docket",
     title: "the docket", id: "sprite-cabinet" },
-  { piece: "chair",   x: 105, y: 104, layer: "back" },
-
-  // --- floor, in front of the wall but behind the desk ---
-  { piece: "rug",     x: 54,  y: 164, layer: "back" },
-
-  // --- desk and what sits on it ---
-  { piece: "desk",      x: 62,  y: 126, layer: "front" },
-  { piece: "lamp",      x: 66,  y: 83,  layer: "front" },   // 83 + 44 = 127
-  { piece: "nameplate", x: 96,  y: 115, layer: "front" },   // 115 + 12 = 127
-  { piece: "mug",       x: 146, y: 111, layer: "front" },   // 111 + 16 = 127
-  { piece: "intray",    x: 166, y: 109, layer: "front" },   // 109 + 18 = 127
-  { piece: "papers",    x: 169, y: 101, layer: "front", id: "sprite-papers" },
-
-  // --- floor furniture ---
-  { piece: "bin",     x: 228, y: 150, layer: "front" },
-  { piece: "plant",   x: 16,  y: 148, layer: "front" },
+  { piece: "chair",   x: 119, y: 118, layer: "back" },
+  { piece: "rug",     x: 62,  y: 186, layer: "back" },
+  // desk and what sits on it
+  { piece: "desk",    x: 76,  y: 140, layer: "front" },
+  { piece: "lamp",    x: 82,  y: 93,  layer: "front" },   //  93 + 48 = 141
+  { piece: "mug",     x: 158, y: 123, layer: "front" },   // 123 + 18 = 141
+  { piece: "intray",  x: 180, y: 121, layer: "front" },   // 121 + 20 = 141
+  { piece: "papers",  x: 183, y: 113, layer: "front", id: "sprite-papers" },
+  // floor
+  { piece: "plant",   x: 22,  y: 176, layer: "front" },   // 176 + 44 = 220, on the floor
+  { piece: "bin",     x: 232, y: 192, layer: "front" },   // 192 + 28 = 220, on the floor
 ];
 
 let OFFICE = null, CLERK = null, clerkTimer = null, clerkQueued = null;
 
-function place(sheet, meta, spec, stage){
+// ---- building the room --------------------------------------------------
+
+function place(meta, spec, stage){
   const b = meta.pieces[spec.piece];
   const el = document.createElement("div");
   el.className = "sprite" + (spec.go ? " clickable" : "");
   if (spec.id) el.id = spec.id;
   el.style.cssText = `left:${spec.x * PX}px; top:${spec.y * PX}px;
     width:${b.w * PX}px; height:${b.h * PX}px;
-    background-image:url("${sheet}");
+    background-image:url("sprites/office.png");
     background-size:${meta.sheet.w * PX}px ${meta.sheet.h * PX}px;
     background-position:-${b.x * PX}px -${b.y * PX}px;`;
   if (spec.go){
@@ -190,38 +190,30 @@ function place(sheet, meta, spec, stage){
   return el;
 }
 
-// ---- the clerk ---------------------------------------------------------
 function mountClerk(meta, stage){
   const el = document.createElement("div");
   el.className = "sprite";
   el.id = "clerk";
-  // Seated: the desk edge crosses the clerk at the belt, and the desk is
-  // painted afterwards so it covers everything below.
-  el.style.cssText = `left:${118 * PX}px; top:${(ROOM.deskTop - ROOM.clerkCut) * PX}px;
+  el.style.cssText = `left:${124 * PX}px; top:${(ROOM.deskTop - ROOM.clerkCut) * PX}px;
     width:${meta.frame.w * PX}px; height:${meta.frame.h * PX}px;
     background-image:url("sprites/clerk.png");
-    background-size:auto ${meta.frame.h * PX}px;`;
+    background-size:auto ${meta.frame.h * PX}px; z-index:2;`;
   stage.appendChild(el);
-  return el;
 }
 
 function clerkState(state){
   if (!CLERK || !CLERK.meta.states[state]) return;
-  // Any pending follow-up belongs to an older event. On reconnect the whole
-  // history replays in milliseconds, and a 700ms "then file it" timeout from
-  // an earlier event would land after the latest verdict and contradict it -
-  // which is how the clerk ended up reading FILED while the status said HALTED.
-  clearTimeout(clerkQueued);
-  clerkQueued = null;
+  // A queued follow-up belongs to an older event. On reconnect the history
+  // replays in milliseconds and a stale "then file it" would land after the
+  // latest verdict and contradict it.
+  clearTimeout(clerkQueued); clerkQueued = null;
   const el = document.getElementById("clerk");
-  const frames = CLERK.meta.states[state];
-  const ms = CLERK.meta.timing[state];
+  const frames = CLERK.meta.states[state], ms = CLERK.meta.timing[state];
   const loop = CLERK.meta.loop[state];
   let i = 0;
   const show = () => el.style.backgroundPosition =
     `-${frames[i] * CLERK.meta.frame.w * PX}px 0`;
-  clearInterval(clerkTimer);
-  show();
+  clearInterval(clerkTimer); show();
   if (frames.length < 2) return;
   clerkTimer = setInterval(() => {
     i++;
@@ -233,96 +225,67 @@ function clerkState(state){
   }, ms);
 }
 
-// ---- data drawn into the furniture -------------------------------------
+// ---- data drawn into the furniture, without words -----------------------
 
-function at(x, y, w, h, id, cls){
+function pipsAt(stage, x, y, n, id){
   const el = document.createElement("div");
-  el.className = "overlay " + (cls || "");
+  el.className = "pips" + (n ? "" : " none");
   el.id = id;
-  el.style.cssText = `left:${x * PX}px; top:${y * PX}px;
-                      width:${w * PX}px; height:${h * PX}px;`;
-  return el;
+  el.style.cssText = `left:${x * PX}px; top:${y * PX}px;`;
+  el.innerHTML = (n ? Array(Math.min(n, 8)).fill("<i></i>").join("") : "<i></i>");
+  stage.appendChild(el);
 }
 
-function buildOverlays(office, stage){
-  // cabinet drawer labels - four drawers, one per status
-  const cab = LAYOUT.find(l => l.piece === "cabinet");
-  const names = ["binding", "advisory", "overruled", "all"];
-  names.forEach((name, i) => {
-    const el = at(cab.x + 6, cab.y + 8 + i * 23, 48, 8, "drawer-" + name, "drawer-label");
-    el.innerHTML = `<span>${name}</span><b>-</b>`;
-    stage.appendChild(el);
-  });
-
-  // the wall chart carries the live tally
+function chartLine(stage, points){
   const ch = LAYOUT.find(l => l.piece === "chart");
-  const t = at(ch.x + 7, ch.y + 6, 62, 6, "charttitle");
-  t.textContent = "THIS CHANGE";
-  stage.appendChild(t);
-  const bars = at(ch.x + 8, ch.y + 14, 60, 32, "chartbars");
-  bars.innerHTML = `<div class="clear"></div><div class="note"></div><div class="halt"></div>`;
-  stage.appendChild(bars);
-
-  // the clock shows when the last verdict came in
-  const ck = LAYOUT.find(l => l.piece === "clock");
-  stage.appendChild(at(ck.x + 3, ck.y + 15, 20, 6, "clockface"));
-
-  // the nameplate says what the desk is for
-  const np = LAYOUT.find(l => l.piece === "nameplate");
-  const plate = at(np.x + 2, np.y + 5, 40, 6, "plate");
-  plate.textContent = "PRECEDENT";
-  stage.appendChild(plate);
-
-  // the lamp's pool of light, centred under the shade
-  const lp = LAYOUT.find(l => l.piece === "lamp");
-  const pool = document.getElementById("pool");
-  pool.style.cssText += `left:${(lp.x - 26) * PX}px; top:${(ROOM.deskTop - 26) * PX}px;
-                         width:${78 * PX}px; height:${52 * PX}px;`;
-  lampColour("idle");
-
-  fetch("data.json").then(r => r.json()).then(d => {
-    const c = d.counts || {};
-    setDrawer("binding", c.binding); setDrawer("advisory", c.persuasive);
-    setDrawer("overruled", c.overruled); setDrawer("all", c.cases);
-  }).catch(() => {});
-}
-
-function setDrawer(name, n){
-  const el = document.getElementById("drawer-" + name);
-  if (el) el.querySelector("b").textContent = (n === undefined ? "-" : n);
+  const x0 = (ch.x + 8) * PX, y0 = (ch.y + 9) * PX;
+  const w = 68 * PX, h = 42 * PX;
+  const old = document.getElementById("chartline");
+  if (old) old.remove();
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.id = "chartline";
+  svg.setAttribute("width", w); svg.setAttribute("height", h);
+  svg.style.cssText = `left:${x0}px; top:${y0}px;`;
+  const max = Math.max(1, ...points);
+  const d = points.map((v, i) => {
+    const px = (i / Math.max(1, points.length - 1)) * w;
+    const py = h - (v / max) * (h - 6) - 3;
+    return `${i ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`;
+  }).join(" ");
+  svg.innerHTML =
+    `<path d="${d}" fill="none" stroke="#E06B63" stroke-width="3"
+           stroke-linejoin="round" stroke-linecap="round"/>` +
+    points.map((v, i) => {
+      const px = (i / Math.max(1, points.length - 1)) * w;
+      const py = h - (v / max) * (h - 6) - 3;
+      return `<rect x="${px - 2}" y="${py - 2}" width="4" height="4" fill="#4A382E"/>`;
+    }).join("");
+  stage.appendChild(svg);
 }
 
 const POOL = {
-  idle:    "rgba(200,162,74,.10)",
-  reading: "rgba(200,162,74,.16)",
-  halt:    "rgba(180,64,44,.22)",
-  cleared: "rgba(111,207,151,.16)",
+  idle:    "rgba(240,180,78,.30)",
+  reading: "rgba(240,180,78,.40)",
+  halt:    "rgba(224,107,99,.42)",
+  cleared: "rgba(95,193,138,.38)",
   off:     "rgba(0,0,0,0)",
 };
 function lampColour(kind){
   const pool = document.getElementById("pool");
   if (pool) pool.style.background =
-    `radial-gradient(ellipse at 50% 40%, ${POOL[kind] || POOL.idle} 0%, rgba(0,0,0,0) 70%)`;
+    `radial-gradient(ellipse at 50% 45%, ${POOL[kind] || POOL.idle} 0%, rgba(0,0,0,0) 72%)`;
 }
 
-function setChart(seats){
-  const n = { clear: 0, note: 0, halt: 0 };
-  seats.forEach(s => { if (n[s.verdict] !== undefined) n[s.verdict]++; });
-  const max = Math.max(1, n.clear, n.note, n.halt);
-  const bars = document.getElementById("chartbars");
-  if (!bars) return;
-  ["clear", "note", "halt"].forEach((k, i) => {
-    bars.children[i].style.height = Math.round(n[k] / max * 100) + "%";
-  });
+// A short rolling history, so the chart is a line rather than three bars.
+const HISTORY = [];
+function pushHistory(seats){
+  HISTORY.push(seats.filter(s => s.verdict === "clear").length);
+  while (HISTORY.length > 12) HISTORY.shift();
+  chartLine(document.getElementById("stage"), HISTORY);
 }
 
-function setClock(ts){
-  const el = document.getElementById("clockface");
-  if (el && ts) el.textContent =
-    new Date(ts * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
-}
+// ---- the stream ---------------------------------------------------------
 
-// ---- the stream --------------------------------------------------------
 let stream = null, sawAnything = false;
 
 function setStatus(kind, text){
@@ -334,11 +297,8 @@ function setStatus(kind, text){
 function connect(){
   if (stream) return;
   try { stream = new EventSource(SERVICE + "/v1/events"); } catch { return offline(); }
-
-  stream.onopen = () => { setStatus("live", "watching"); clerkState("watching"); };
-  stream.onerror = () => {
-    stream.close(); stream = null; offline(); setTimeout(connect, 4000);
-  };
+  stream.onopen = () => { setStatus("live", "watching"); clerkState("watching"); lampColour("idle"); };
+  stream.onerror = () => { stream.close(); stream = null; offline(); setTimeout(connect, 4000); };
   stream.onmessage = (e) => {
     let ev; try { ev = JSON.parse(e.data); } catch { return; }
     if (ev.kind === "watch.start"){
@@ -348,8 +308,7 @@ function connect(){
     if (ev.kind === "sitting") sitting(ev);
     if (ev.kind === "recovered"){
       document.getElementById("halt").classList.remove("on");
-      clerkState("cleared");
-      lampColour("cleared");
+      clerkState("cleared"); lampColour("cleared");
       clerkQueued = setTimeout(() => clerkState("filing"), 700);
       setStatus("live", "cleared");
     }
@@ -358,8 +317,7 @@ function connect(){
 
 function offline(){
   setStatus("", "no service on " + SERVICE);
-  clerkState("dormant");
-  lampColour("off");
+  clerkState("dormant"); lampColour("off");
   if (!sawAnything){
     document.getElementById("seats").innerHTML = `<div class="empty">
       <div class="big">Nobody is at the desk.</div>
@@ -374,12 +332,11 @@ function sitting(ev){
   const halted = seats.filter(s => s.verdict === "halt");
   const skipped = seats.some(s => s.verdict === "skip");
 
-  // what landed on the desk
   const inc = document.getElementById("incoming");
   if (ev.touched && ev.touched.length){
     inc.classList.add("on");
-    inc.innerHTML = ev.touched.slice(0, 4).map(f => `<b>${f}</b>`).join("")
-      + (ev.touched.length > 4 ? `+${ev.touched.length - 4} more` : "");
+    inc.innerHTML = ev.touched.slice(0, 3).map(f => `<b>${f}</b>`).join("")
+      + (ev.touched.length > 3 ? `+${ev.touched.length - 3} more` : "");
     document.getElementById("sprite-papers").style.display = "";
   } else {
     inc.classList.remove("on");
@@ -388,26 +345,22 @@ function sitting(ev){
 
   if (halted.length){
     const v = halted[0];
-    document.getElementById("haltno").textContent =
-      `PRECEDENT No ${v.holding_id} · ${v.domain}`;
+    document.getElementById("haltno").textContent = `Precedent No ${v.holding_id} · ${v.domain}`;
     document.getElementById("haltsays").textContent = v.says;
     document.getElementById("haltwhy").textContent = v.reason || "";
     const nx = document.getElementById("haltnext");
     nx.textContent = v.next ? "do this next: " + v.next : "";
     nx.style.display = v.next ? "" : "none";
     document.getElementById("halt").classList.add("on");
-    clerkState("halt");
-    lampColour("halt");
+    clerkState("halt"); lampColour("halt");
     setStatus("halt", "halted");
   } else {
     document.getElementById("halt").classList.remove("on");
-    clerkState(skipped ? "skip" : "reading");
-    lampColour("reading");
+    clerkState(skipped ? "skip" : "reading"); lampColour("reading");
     setStatus("live", skipped ? "a rule could not be evaluated" : "reading");
   }
 
-  setChart(seats);
-  setClock(ev.at);
+  pushHistory(seats);
   renderSeats(ev, seats, halted.length);
 }
 
@@ -419,7 +372,7 @@ function renderSeats(ev, seats, haltCount){
     ? `${haltCount} rule${haltCount > 1 ? "s" : ""} stopped this change.`
     : "Nothing objects.";
   document.getElementById("ledgerhint").textContent =
-    `${when} · ${seats.length} rules looked · ` +
+    `${when} · ${seats.length} looked · ` +
     ["halt", "note", "skip", "clear"].filter(v => tally[v])
       .map(v => `${tally[v]} ${v}`).join(" · ");
 
@@ -434,7 +387,8 @@ function renderSeats(ev, seats, haltCount){
     </div>`).join("");
 }
 
-// ---- boot --------------------------------------------------------------
+// ---- boot ---------------------------------------------------------------
+
 Promise.all([
   fetch("sprites/office.json").then(r => r.json()),
   fetch("sprites/clerk.json").then(r => r.json()),
@@ -443,14 +397,50 @@ Promise.all([
   const stage = document.getElementById("stage");
   stage.style.width = ROOM.w * PX + "px";
   stage.style.height = ROOM.h * PX + "px";
-  document.getElementById("floor").style.height = (ROOM.h - ROOM.floorTop) * PX + "px";
-  for (const spec of LAYOUT.filter(s => s.layer === "back"))
-    place("sprites/office.png", office, spec, stage);
+
+  // wall and floor, tiled from single pieces of the sheet
+  const wall = document.getElementById("wall"), floorEl = document.getElementById("floor");
+  const bw = office.pieces.brick, fl = office.pieces.floor;
+  wall.style.cssText += `height:${ROOM.floorTop * PX}px;
+    background:url("sprites/brick.png") repeat;
+    background-size:${bw.w * PX}px ${bw.h * PX}px;`;
+  floorEl.style.cssText += `height:${(ROOM.h - ROOM.floorTop) * PX}px;
+    background:url("sprites/floor.png") repeat;
+    background-size:${fl.w * PX}px ${fl.h * PX}px;`;
+
+  for (const spec of LAYOUT.filter(s => s.layer === "back")) place(office, spec, stage);
   mountClerk(clerk, stage);
-  for (const spec of LAYOUT.filter(s => s.layer === "front"))
-    place("sprites/office.png", office, spec, stage);
-  buildOverlays(office, stage);
+  for (const spec of LAYOUT.filter(s => s.layer === "front")) place(office, spec, stage);
+
+  // the halt card lands on the desk, in front of the clerk
+  const desk = LAYOUT.find(l => l.piece === "desk");
+  // Narrow enough to leave the desk readable behind it. A card that spans the
+  // whole front hides the furniture it is supposed to be lying on.
+  Object.assign(document.getElementById("halt").style, {
+    left: (desk.x + 26) * PX + "px", top: (ROOM.deskTop + 6) * PX + "px",
+    width: 100 * PX + "px",
+  });
+  Object.assign(document.getElementById("incoming").style, {
+    left: (desk.x + 152) * PX + "px", top: 108 * PX + "px",
+  });
+
+  // lamp pool
+  const lp = LAYOUT.find(l => l.piece === "lamp");
+  Object.assign(document.getElementById("pool").style, {
+    left: (lp.x - 24) * PX + "px", top: (ROOM.deskTop - 28) * PX + "px",
+    width: 80 * PX + "px", height: 54 * PX + "px",
+  });
+  lampColour("off");
+
+  // drawer counts as pips, so no words go on the furniture
+  fetch("data.json").then(r => r.json()).then(d => {
+    const c = d.counts || {}, cab = LAYOUT.find(l => l.piece === "cabinet");
+    [c.binding, c.persuasive, c.overruled, c.cases].forEach((n, i) =>
+      pipsAt(stage, cab.x + 9, cab.y + 12 + i * 23, n || 0, "pips-" + i));
+  }).catch(() => {});
+
   document.getElementById("sprite-papers").style.display = "none";
+  chartLine(stage, [0]);
   clerkState("dormant");
   connect();
 }).catch(() => offline());

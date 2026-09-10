@@ -27,39 +27,74 @@ OUT = Path(__file__).resolve().parents[2] / "web" / "sprites"
 # docs/DESIGN.md; nothing here invents a colour.
 P = {
     "_": (0, 0, 0, 0),                # transparent
-    "K": (0x17, 0x12, 0x19, 255),     # ink outline
-    "k": (0x2E, 0x24, 0x30, 255),     # soft outline
-    "C": (0xA9, 0xB0, 0xA4, 255),     # CRT putty
-    "c": (0x8A, 0x92, 0x88, 255),     # CRT shadow side
-    "H": (0xC6, 0xCB, 0xC2, 255),     # CRT highlight
-    "S": (0x0C, 0x14, 0x10, 255),     # screen glass
-    "s": (0x14, 0x1E, 0x18, 255),     # screen scanline
-    "G": (0x6F, 0xCF, 0x97, 255),     # phosphor green
-    "A": (0xC8, 0xA2, 0x4A, 255),     # amber
-    "R": (0xB4, 0x40, 0x2C, 255),     # stamp red
-    "W": (0xF2, 0xEA, 0xD8, 255),     # shirt paper
-    "w": (0xD8, 0xCD, 0xB6, 255),     # shirt shadow
-    "T": (0x6B, 0x4A, 0x32, 255),     # trousers
-    "t": (0x54, 0x3A, 0x27, 255),     # trouser shadow
-    "B": (0x3A, 0x2C, 0x25, 255),     # shoes / belt
-    "D": (0x5E, 0x53, 0x48, 255),     # dormant wash
-    "O": (0x7C, 0x8A, 0x72, 255),     # filing-cabinet olive
-    "N": (0x17, 0x12, 0x19, 255),     # the room behind, for knee holes
 
-    # Book spines. The office is otherwise brown on brown, and a shelf of
-    # ledgers is where colour belongs in a records room - not on the walls.
-    "b1": (0x8C, 0x3B, 0x2E, 255),    # oxblood
-    "b2": (0x4A, 0x6B, 0x7C, 255),    # slate blue
-    "b3": (0x7C, 0x8A, 0x72, 255),    # olive
-    "b4": (0xC8, 0xA2, 0x4A, 255),    # tan
-    "b5": (0x5E, 0x4A, 0x6B, 255),    # aubergine
-    "b6": (0x3F, 0x6B, 0x5A, 255),    # deep green
+    # Outlines are warm dark brown, never black. Black reads as harsh and
+    # cheap at this size; a brown line keeps the room soft.
+    "K": (0x4A, 0x38, 0x2E, 255),     # outline
+    "k": (0x6B, 0x55, 0x46, 255),     # soft outline / seam
 
-    # Daylight through the window: the room's second light source, cool
-    # against the lamp's warm, which is what gives a flat scene depth.
-    "d1": (0x39, 0x4A, 0x5C, 255),    # sky
-    "d2": (0x51, 0x66, 0x7A, 255),    # sky, lit
-    "d3": (0x6E, 0x85, 0x99, 255),    # glare
+    # --- the room: warm, light, and lit from the upper left ---------------
+    "R1": (0xE8, 0xDC, 0xCA, 255),    # mortar
+    "R2": (0xCE, 0x9A, 0x7C, 255),    # brick
+    "R3": (0xB8, 0x82, 0x66, 255),    # brick, shaded
+    "R4": (0xDD, 0xAE, 0x90, 255),    # brick, lit
+    "F1": (0xC9, 0xA2, 0x7A, 255),    # floorboard
+    "F2": (0xB2, 0x88, 0x62, 255),    # floorboard, shaded
+    "F3": (0xD8, 0xB4, 0x8E, 255),    # floorboard, lit
+
+    # --- wood ------------------------------------------------------------
+    "W1": (0xB0, 0x76, 0x4C, 255),    # wood
+    "W2": (0x8C, 0x59, 0x38, 255),    # wood, shaded
+    "W3": (0xC9, 0x93, 0x68, 255),    # wood, lit
+    "W4": (0x6E, 0x44, 0x2B, 255),    # wood, deep shadow
+
+    # --- painted metal ----------------------------------------------------
+    "M1": (0x9F, 0xB0, 0x8F, 255),    # sage
+    "M2": (0x82, 0x93, 0x6F, 255),    # sage, shaded
+    "M3": (0xBA, 0xC8, 0xAC, 255),    # sage, lit
+
+    # --- paper and cloth ---------------------------------------------------
+    "P1": (0xFD, 0xF6, 0xE7, 255),    # paper
+    "P2": (0xEA, 0xDD, 0xC4, 255),    # paper, shaded
+    "P3": (0xD3, 0xC2, 0xA4, 255),    # paper, ruled
+
+    # --- the CRT ------------------------------------------------------------
+    "C": (0xC7, 0xC2, 0xB3, 255),     # casing
+    "c": (0xA8, 0xA2, 0x92, 255),     # casing, shaded
+    "H": (0xE2, 0xDE, 0xD2, 255),     # casing, lit
+    "S": (0x2B, 0x3A, 0x32, 255),     # glass
+    "s": (0x36, 0x47, 0x3D, 255),     # glass, scanline
+
+    # --- signal -------------------------------------------------------------
+    "G": (0x5F, 0xC1, 0x8A, 255),     # phosphor / cleared
+    "A": (0xF0, 0xB4, 0x4E, 255),     # amber / advisory
+    "R": (0xE0, 0x6B, 0x63, 255),     # coral / halt
+    "r": (0xC4, 0x4E, 0x48, 255),     # coral, shaded
+
+    # --- daylight ------------------------------------------------------------
+    "d1": (0x9E, 0xDE, 0xE6, 255),    # glass
+    "d2": (0xC4, 0xEE, 0xF2, 255),    # glass, lit
+    "d3": (0xFF, 0xFF, 0xFF, 255),    # glare
+    "gr": (0x6F, 0xA8, 0x6B, 255),    # foliage
+    "g2": (0x54, 0x88, 0x52, 255),    # foliage, shaded
+
+    # --- ledger spines --------------------------------------------------------
+    "b1": (0xD4, 0x6A, 0x5F, 255),
+    "b2": (0x6E, 0x9E, 0xC4, 255),
+    "b3": (0x8F, 0xB8, 0x7A, 255),
+    "b4": (0xF0, 0xB4, 0x4E, 255),
+    "b5": (0xA9, 0x8A, 0xC4, 255),
+    "b6": (0x5E, 0xB0, 0xA6, 255),
+
+    # --- misc ---------------------------------------------------------------
+    "T": (0xB0, 0x76, 0x4C, 255),     # legacy alias -> wood
+    "t": (0x8C, 0x59, 0x38, 255),     # legacy alias -> wood shaded
+    "B": (0x6E, 0x44, 0x2B, 255),     # leather / dark trim
+    "O": (0x9F, 0xB0, 0x8F, 255),     # legacy alias -> sage
+    "N": (0xE8, 0xDC, 0xCA, 255),     # the room behind
+    "D": (0xB8, 0xAE, 0x9E, 255),     # dormant wash
+    "W": (0xFD, 0xF6, 0xE7, 255),     # legacy alias -> paper
+    "w": (0xEA, 0xDD, 0xC4, 255),     # legacy alias -> paper shaded
 }
 
 
@@ -102,6 +137,43 @@ class Canvas:
         y += self.oy
         if 0 <= x < self.w and 0 <= y < self.h:
             self.px[y][x] = "_"
+
+    def box(self, x0, y0, x1, y1, mid, lit=None, dark=None, outline="K"):
+        """A shaded solid. Light along the top and left, shadow along the
+        bottom and right - the one convention that stops pixel art reading
+        flat, applied everywhere rather than by eye."""
+        self.rect(x0, y0, x1, y1, mid)
+        if lit:
+            self.hline(x0 + 1, x1 - 1, y0 + 1, lit)
+            self.vline(x0 + 1, y0 + 1, y1 - 1, lit)
+        if dark:
+            self.hline(x0 + 1, x1 - 1, y1 - 1, dark)
+            self.vline(x1 - 1, y0 + 1, y1 - 1, dark)
+        if outline:
+            self.frame(x0, y0, x1, y1, outline)
+
+    def grain(self, x0, y0, x1, y1, tone, step=3, offset=0):
+        """Wood grain and cloth weave. Sparse, so it is texture not noise."""
+        for y in range(y0, y1 + 1):
+            if (y + offset) % step:
+                continue
+            for x in range(x0, x1 + 1, 2):
+                if (x + y) % 4 == 0:
+                    self.set(x, y, tone)
+
+    def dither(self, x0, y0, x1, y1, tone):
+        """A checker of one tone into another. Softens a hard edge without
+        adding a colour."""
+        for y in range(y0, y1 + 1):
+            for x in range(x0, x1 + 1):
+                if (x + y) % 2 == 0:
+                    self.set(x, y, tone)
+
+    def shadow(self, x0, y0, x1, y1, tone):
+        """Contact shadow. Objects that do not cast one look pasted on."""
+        self.rect(x0, y0, x1, y1, tone)
+        self.dither(x0 - 2, y0, x0 - 1, y1, tone)
+        self.dither(x1 + 1, y0, x1 + 2, y1, tone)
 
     def chamfer(self, x0, y0, x1, y1):
         """Knock the corners off so the casing reads as moulded plastic."""

@@ -9,9 +9,11 @@ sources reads as assembled.
 
 writes web/sprites/office.png, office@4x.png and office.json.
 
-Each piece is furniture the interface actually needs: the desk the clerk works
-at, the cabinet that holds the docket, the chart on the wall, the lamp over the
-case file. Nothing here is scenery for its own sake.
+Two rules hold this together. The light comes from the upper left, so every
+solid is drawn with cv.box() and gets a lit edge and a shadowed one - a flat
+fill is what makes pixel art look like a placeholder. And nothing here carries
+text: labels belong to the page, which can change them, not to a sprite that
+cannot.
 """
 from __future__ import annotations
 
@@ -21,8 +23,6 @@ from PIL import Image
 
 from .clerk import Canvas, OUT
 
-# name -> (w, h, draw fn). Sizes chosen against the clerk at 48x74 so the room
-# is in proportion when both are shown at the same scale.
 PIECES: dict[str, tuple] = {}
 
 
@@ -33,338 +33,271 @@ def piece(name: str, w: int, h: int):
     return wrap
 
 
+# ---- surfaces: the room itself -------------------------------------------
+
+@piece("brick", 64, 32)
+def brick(cv: Canvas):
+    """A wall tile. Running bond, mortar lines, and no two bricks quite the
+    same tone - a wall of identical rectangles reads as graph paper."""
+    cv.rect(0, 0, 63, 31, "R1")
+    shades = ("R2", "R4", "R3", "R2", "R4", "R2", "R3", "R4")
+    i = 0
+    for row, y in enumerate((0, 8, 16, 24)):
+        offset = 0 if row % 2 == 0 else -16
+        for x in range(offset, 64, 32):
+            tone = shades[i % len(shades)]
+            i += 1
+            cv.rect(x + 1, y + 1, x + 30, y + 6, tone)
+            cv.hline(x + 2, x + 29, y + 1, "R1" if tone == "R4" else "R4")
+            cv.hline(x + 2, x + 29, y + 6, "R3")
+            if i % 3 == 0:
+                cv.set(x + 8, y + 4, "R3")
+                cv.set(x + 21, y + 3, "R3")
+
+
+@piece("floor", 64, 24)
+def floor(cv: Canvas):
+    """Floorboards."""
+    cv.rect(0, 0, 63, 23, "F1")
+    for y in (0, 8, 16):
+        cv.hline(0, 63, y, "F2")
+        cv.hline(0, 63, y + 1, "F3")
+        cv.grain(0, y + 2, 63, y + 7, "F2", step=4)
+    for x in (14, 46):
+        cv.vline(x, 0, 7, "F2")
+    cv.vline(30, 8, 15, "F2")
+    cv.vline(6, 16, 23, "F2")
+
+
 # ---- the desk ------------------------------------------------------------
 
-@piece("desk", 148, 46)
+@piece("desk", 148, 50)
 def desk(cv: Canvas):
-    """Front view. A working desk: top, apron, a bank of drawers, four legs."""
-    # top, with a lighter front edge
-    cv.rect(0, 0, 147, 5, "T")
-    cv.frame(0, 0, 147, 5, "K")
-    cv.hline(1, 146, 1, "t")
-    cv.hline(1, 146, 4, "t")
+    """Front view: top, apron, two drawer banks, four legs."""
+    cv.box(0, 0, 147, 6, "W1", "W3", "W2")
+    cv.grain(2, 2, 145, 5, "W2", step=2)
+    cv.box(4, 7, 143, 12, "W2", "W1", "W4")
 
-    # apron
-    cv.rect(4, 6, 143, 11, "t")
-    cv.frame(4, 6, 143, 11, "K")
+    for (bx0, bx1) in ((6, 54), (102, 141)):
+        cv.box(bx0, 13, bx1, 40, "W1", "W3", "W2")
+        for y in (15, 24, 33):
+            cv.box(bx0 + 3, y, bx1 - 3, y + 6, "W2", "W1", "W4")
+            cv.grain(bx0 + 4, y + 1, bx1 - 4, y + 5, "W4", step=3)
+            mx = (bx0 + bx1) // 2
+            cv.box(mx - 5, y + 2, mx + 5, y + 4, "C", "H", "c")
 
-    # drawer bank, left
-    cv.rect(6, 12, 54, 38, "T")
-    cv.frame(6, 12, 54, 38, "K")
-    for i, y in enumerate((14, 23, 32)):
-        cv.rect(9, y, 51, y + 6, "t")
-        cv.frame(9, y, 51, y + 6, "K")
-        cv.rect(26, y + 2, 34, y + 4, "C")      # pull handle
-        cv.frame(26, y + 2, 34, y + 4, "K")
+    cv.rect(56, 13, 100, 40, "W4")
+    cv.frame(56, 13, 100, 40, "K")
+    cv.dither(57, 14, 99, 22, "W2")
 
-    # knee hole
-    cv.rect(56, 12, 100, 38, "K")
-    cv.rect(58, 12, 98, 36, "N")           # knee hole: the room shows through
-
-    # drawer bank, right
-    cv.rect(102, 12, 141, 38, "T")
-    cv.frame(102, 12, 141, 38, "K")
-    for y in (14, 23, 32):
-        cv.rect(105, y, 138, y + 6, "t")
-        cv.frame(105, y, 138, y + 6, "K")
-        cv.rect(117, y + 2, 125, y + 4, "C")
-        cv.frame(117, y + 2, 125, y + 4, "K")
-
-    # legs
     for x in (6, 48, 102, 137):
-        cv.rect(x, 38, x + 5, 45, "t")
-        cv.frame(x, 38, x + 5, 45, "K")
+        cv.box(x, 40, x + 5, 48, "W2", "W1", "W4")
+    cv.shadow(4, 49, 143, 49, "F2")
 
-
-# ---- the filing cabinet --------------------------------------------------
 
 @piece("cabinet", 60, 96)
 def cabinet(cv: Canvas):
-    """Four drawers: binding, advisory, overruled, all."""
-    cv.rect(0, 0, 59, 95, "O")
-    cv.frame(0, 0, 59, 95, "K")
-    cv.hline(1, 58, 1, "C")                     # top highlight
-    cv.vline(1, 2, 94, "C")
-    cv.vline(58, 2, 94, "k")
-
+    """Four drawers. No labels - the page writes those over the top."""
+    cv.box(0, 0, 59, 95, "M1", "M3", "M2")
     for i in range(4):
         y = 4 + i * 23
-        cv.rect(4, y, 55, y + 19, "O")
-        cv.frame(4, y, 55, y + 19, "K")
-        cv.hline(5, 54, y + 1, "C")
-        cv.hline(5, 54, y + 18, "k")
-        # pull
-        cv.rect(22, y + 8, 37, y + 12, "C")
-        cv.frame(22, y + 8, 37, y + 12, "K")
-        cv.hline(23, 36, y + 9, "H")
-        # label holder
-        cv.rect(8, y + 4, 18, y + 7, "W")
-        cv.frame(8, y + 4, 18, y + 7, "K")
+        cv.box(4, y, 55, y + 19, "M1", "M3", "M2")
+        cv.dither(5, y + 14, 54, y + 18, "M2")
+        cv.box(20, y + 8, 39, y + 12, "C", "H", "c")
+        cv.box(8, y + 3, 17, y + 6, "P1", None, "P2")
+    cv.shadow(2, 95, 57, 95, "F2")
 
 
-# ---- the chair -----------------------------------------------------------
-
-@piece("chair", 62, 40)
+@piece("chair", 62, 42)
 def chair(cv: Canvas):
-    """An office chair seen from behind the sitter.
-
-    Only the backrest and the shoulders of the frame are ever visible - the
-    clerk covers the middle and the desk covers the rest. It exists so the
-    clerk reads as SITTING rather than standing on the furniture.
-    """
-    cv.rect(0, 0, 61, 27, "t")                  # backrest
-    cv.frame(0, 0, 61, 27, "K")
-    cv.hline(1, 60, 1, "T")                     # top rail highlight
-    cv.rect(4, 4, 57, 23, "B")                  # padded panel
-    cv.frame(4, 4, 57, 23, "K")
-    for y in (9, 15, 21):                       # stitching
-        cv.hline(6, 55, y, "t")
-    cv.rect(27, 28, 34, 39, "t")                # post
-    cv.frame(27, 28, 34, 39, "K")
+    """Seen from behind the sitter: backrest, frame, post."""
+    cv.box(0, 0, 61, 27, "W2", "W1", "W4")
+    cv.box(4, 4, 57, 23, "B", "W2", "W4")
+    for y in (9, 15, 21):
+        cv.hline(7, 54, y, "W2")
+    cv.box(27, 28, 34, 41, "W2", "W1", "W4")
 
 
-# ---- the wall chart ------------------------------------------------------
+# ---- on the wall ---------------------------------------------------------
 
-@piece("chart", 76, 56)
-def chart(cv: Canvas):
-    """A framed chart. The bars are drawn by the page, not baked in here."""
-    cv.rect(0, 0, 75, 55, "T")
-    cv.frame(0, 0, 75, 55, "K")
-    cv.hline(1, 74, 1, "t")
-    cv.rect(4, 4, 71, 51, "W")
-    cv.frame(4, 4, 71, 51, "K")
-    cv.hline(6, 69, 47, "k")                    # axis
-    cv.vline(7, 8, 47, "k")
-    for x in (14, 26, 38, 50, 62):              # tick marks
-        cv.set(x, 48, "k")
-
-
-# ---- the desk lamp -------------------------------------------------------
-
-@piece("lamp", 26, 44)
-def lamp(cv: Canvas):
-    """Bankers' lamp: a shade that flares, a stem, a weighted base.
-
-    The shade is a trapezoid, not a block. A rectangle reads as a brick and the
-    whole piece stops looking like a lamp.
-    """
-    for i, y in enumerate(range(0, 9)):         # flared shade
-        inset = 4 - i // 2
-        cv.hline(4 + inset, 21 - inset, y, "R")
-        cv.set(4 + inset - 1, y, "K")
-        cv.set(21 - inset + 1, y, "K")
-    cv.hline(6, 19, 1, "W")                     # highlight along the crown
-    cv.hline(1, 24, 9, "K")                     # rim
-    cv.hline(2, 23, 10, "A")                    # the light itself
-    cv.hline(4, 21, 11, "A")
-    cv.hline(7, 18, 12, "A")
-
-    cv.rect(11, 12, 14, 35, "B")                # stem
-    cv.frame(11, 12, 14, 35, "K")
-    cv.vline(12, 13, 34, "t")
-    cv.rect(5, 36, 20, 43, "B")                 # base
-    cv.frame(5, 36, 20, 43, "K")
-    cv.hline(6, 19, 37, "t")
-
-
-# ---- paperwork -----------------------------------------------------------
-
-@piece("papers", 34, 20)
-def papers(cv: Canvas):
-    """A short stack, slightly fanned. What arrives on the desk."""
-    for i, (dx, dy) in enumerate(((0, 4), (2, 2), (4, 0))):
-        cv.rect(dx, dy, dx + 27, dy + 14, "W")
-        cv.frame(dx, dy, dx + 27, dy + 14, "K")
-    for y in (4, 7, 10, 13):
-        cv.hline(8, 27, y, "w")
-
-
-@piece("intray", 40, 18)
-def intray(cv: Canvas):
-    """A wire in-tray. Empty until a change lands."""
-    cv.rect(0, 6, 39, 17, "C")
-    cv.frame(0, 6, 39, 17, "K")
-    cv.hline(1, 38, 7, "H")
-    cv.vline(0, 0, 6, "K")
-    cv.vline(39, 0, 6, "K")
-    cv.hline(0, 39, 0, "K")
-
-
-# ---- a little life -------------------------------------------------------
-
-@piece("plant", 26, 38)
-def plant(cv: Canvas):
-    """One plant. The office would be a morgue without it.
-
-    Leaves are little clusters rather than single strokes - a one-pixel line
-    reads as a wire, and a wire in a pot is not a plant.
-    """
-    cv.rect(6, 27, 19, 37, "R")                 # pot, tapered
-    cv.frame(6, 27, 19, 37, "K")
-    cv.hline(7, 18, 28, "W")
-    cv.hline(8, 17, 36, "K")
-    cv.rect(7, 24, 18, 27, "R")                 # rim
-    cv.frame(7, 24, 18, 27, "K")
-    cv.rect(8, 25, 17, 26, "t")                 # soil
-
-    def leaf(x, y, h, tone):
-        cv.vline(x, y, y + h, tone)
-        for d in range(1, h, 3):
-            cv.set(x - 1, y + d, tone)
-            cv.set(x + 1, y + d + 1, tone)
-        cv.set(x, y - 1, tone)
-
-    leaf(12, 4, 20, "O")
-    leaf(8, 9, 15, "O")
-    leaf(16, 9, 15, "O")
-    leaf(6, 15, 9, "C")
-    leaf(18, 15, 9, "C")
-
-
-@piece("mug", 16, 16)
-def mug(cv: Canvas):
-    cv.rect(1, 4, 11, 15, "W")
-    cv.frame(1, 4, 11, 15, "K")
-    cv.rect(2, 5, 10, 7, "B")                   # coffee
-    cv.rect(12, 7, 14, 12, "W")                 # handle
-    cv.frame(12, 7, 14, 12, "K")
-    cv.set(13, 9, "K")
-    cv.set(13, 10, "K")
-
-
-# ---- the wall ------------------------------------------------------------
-
-@piece("window", 78, 66)
+@piece("window", 78, 70)
 def window(cv: Canvas):
-    """Daylight. The room's second light source - cool against the lamp's warm,
-    which is the whole reason a flat scene gains depth."""
-    cv.rect(0, 0, 77, 65, "T")                  # frame
-    cv.frame(0, 0, 77, 65, "K")
-    cv.hline(1, 76, 1, "t")
-    cv.rect(4, 4, 73, 61, "d1")                 # glass
-    cv.frame(4, 4, 73, 61, "K")
-    # panes: four lights, brighter towards the top left
-    for (x0, y0, x1, y1, tone) in ((5, 5, 37, 31, "d2"), (40, 5, 72, 31, "d2"),
-                                   (5, 34, 37, 60, "d1"), (40, 34, 72, 60, "d1")):
-        cv.rect(x0, y0, x1, y1, tone)
-    cv.hline(6, 30, 8, "d3")                    # glare streak
-    cv.hline(6, 22, 10, "d3")
-    cv.vline(38, 4, 61, "T")                    # mullion
-    cv.frame(38, 4, 39, 61, "K")
-    cv.hline(4, 73, 32, "T")                    # transom
-    cv.frame(4, 32, 73, 33, "K")
-    cv.rect(0, 62, 77, 65, "t")                 # sill
-    cv.frame(0, 62, 77, 65, "K")
+    """Daylight, with greenery over the head. The room's cool light."""
+    cv.box(0, 6, 77, 65, "W1", "W3", "W2")
+    cv.rect(4, 10, 73, 61, "d1")
+    cv.frame(4, 10, 73, 61, "K")
+    for (x0, y0) in ((5, 11), (41, 11), (5, 38), (41, 38)):
+        cv.rect(x0, y0, min(x0 + 32, 72), min(y0 + 22, 60), "d2" if y0 < 36 else "d1")
+        for d in range(0, 13):
+            cv.set(x0 + 3 + d, y0 + 14 - d, "d3")
+            cv.set(x0 + 4 + d, y0 + 14 - d, "d3")
+    cv.box(38, 10, 40, 61, "W1", "W3", "W2")
+    cv.box(4, 34, 73, 37, "W1", "W3", "W2")
+    cv.box(0, 62, 77, 69, "W1", "W3", "W2")
+    for x in range(2, 74, 5):
+        cv.rect(x, 0, x + 3, 4, "gr")
+        cv.set(x + 1, 5, "g2")
+        cv.set(x + 3, 2, "g2")
 
 
-@piece("shelf", 96, 54)
+@piece("shelf", 96, 58)
 def shelf(cv: Canvas):
-    """Ledgers. Two rows of spines - where the colour in this room comes from."""
-    cv.rect(0, 0, 95, 53, "t")
-    cv.frame(0, 0, 95, 53, "K")
-    cv.hline(1, 94, 1, "T")
-    tones = ["b1", "b2", "b4", "b3", "b5", "b1", "b6", "b2", "b4", "b5", "b3", "b1"]
-    for row, top in enumerate((4, 29)):
-        x = 4
-        i = row * 6
-        while x < 90 and i < len(tones):
+    """Ledgers. Where the colour in this room comes from."""
+    cv.box(0, 0, 95, 57, "W2", "W1", "W4")
+    tones = ["b1", "b2", "b4", "b3", "b5", "b6", "b2", "b1", "b4", "b3", "b5", "b6"]
+    for row, top in enumerate((4, 30)):
+        cv.rect(3, top, 92, top + 20, "W4")
+        x, i = 5, row * 5          # a different starting colour per row
+        while x < 86:
+            t = tones[i % len(tones)]
             w = 4 + (i % 3)
-            h = 19 - (i % 4)
-            cv.rect(x, top + (19 - h), x + w, top + 19, tones[i])
-            cv.frame(x, top + (19 - h), x + w, top + 19, "K")
-            cv.hline(x + 1, x + w - 1, top + (19 - h) + 2, "W")   # title band
-            x += w + 2
+            h = 18 - (i % 4)
+            cv.box(x, top + (20 - h), x + w, top + 19, t, None, None, "K")
+            cv.vline(x + 1, top + (21 - h), top + 18, "P1")
             i += 1
-        cv.rect(0, top + 20, 95, top + 22, "t")                    # the shelf board
-        cv.frame(0, top + 20, 95, top + 22, "K")
+            x += w + 2
+        cv.box(1, top + 20, 94, top + 23, "W1", "W3", "W2")
+    cv.shadow(2, 57, 93, 57, "R3")
 
 
-@piece("clock", 26, 26)
+@piece("chart", 84, 60)
+def chart(cv: Canvas):
+    """A framed chart. The line is drawn by the page, not baked in here."""
+    cv.box(0, 0, 83, 59, "W1", "W3", "W2")
+    cv.box(4, 4, 79, 55, "P1", None, "P2")
+    for y in range(10, 52, 7):
+        cv.hline(7, 76, y, "P3")
+
+
+@piece("clock", 28, 28)
 def clock(cv: Canvas):
-    """A wall clock. It shows when the last verdict came in."""
-    cv.rect(2, 2, 23, 23, "W")
-    cv.frame(2, 2, 23, 23, "K")
-    cv.frame(1, 1, 24, 24, "T")
-    cv.frame(0, 0, 25, 25, "K")
-    for (x, y) in ((12, 4), (12, 21), (4, 12), (21, 12)):
+    """Hands only. Nothing to read."""
+    cv.box(0, 0, 27, 27, "W1", "W3", "W2")
+    cv.box(3, 3, 24, 24, "P1", None, "P2")
+    for (x, y) in ((13, 5), (13, 22), (5, 13), (22, 13)):
         cv.set(x, y, "K")
-    cv.vline(12, 8, 12, "K")                    # hands
-    cv.hline(12, 17, 13, "K")
-    cv.set(12, 13, "R")
+    cv.vline(13, 8, 13, "K")
+    cv.hline(13, 18, 14, "K")
+    cv.set(13, 14, "R")
 
 
 @piece("corkboard", 88, 58)
 def corkboard(cv: Canvas):
-    """Where the rules currently firing get pinned. Empty until one does."""
-    cv.rect(0, 0, 87, 57, "T")
-    cv.frame(0, 0, 87, 57, "K")
-    cv.rect(3, 3, 84, 54, "t")
-    cv.frame(3, 3, 84, 54, "K")
-    for y in range(6, 53, 3):                   # cork speckle
-        for x in range(6 + (y % 6), 82, 7):
-            cv.set(x, y, "T")
+    cv.box(0, 0, 87, 57, "W1", "W3", "W2")
+    cv.box(3, 3, 84, 54, "b4", None, "W2")
+    cv.grain(5, 5, 82, 52, "W2", step=3)
 
 
-# ---- the desk, in more detail ---------------------------------------------
+# ---- small things ---------------------------------------------------------
 
-@piece("outtray", 40, 18)
+@piece("lamp", 30, 48)
+def lamp(cv: Canvas):
+    """A coral shade with a warm centre, on a wooden stem."""
+    for i, y in enumerate(range(0, 12)):
+        inset = 6 - i // 2
+        cv.hline(5 + inset, 24 - inset, y, "R")
+        cv.set(4 + inset, y, "K")
+        cv.set(25 - inset, y, "K")
+    for i, y in enumerate(range(3, 12)):
+        w = i // 2
+        cv.hline(14 - w, 15 + w, y, "A")
+    cv.hline(8, 21, 1, "P1")
+    cv.box(2, 12, 27, 15, "r", "R", "K")
+    cv.hline(4, 25, 16, "A")
+    cv.box(13, 16, 16, 39, "W2", "W1", "W4")
+    cv.box(6, 40, 23, 46, "W2", "W1", "W4")
+    cv.shadow(5, 47, 24, 47, "W2")
+
+
+@piece("papers", 36, 22)
+def papers(cv: Canvas):
+    for (dx, dy) in ((0, 5), (2, 3), (4, 0)):
+        cv.box(dx, dy, dx + 29, dy + 15, "P1", None, "P2")
+    for y in (4, 7, 10, 13):
+        cv.hline(9, 30, y, "P3")
+
+
+@piece("intray", 42, 20)
+def intray(cv: Canvas):
+    cv.box(0, 7, 41, 19, "M1", "M3", "M2")
+    cv.vline(0, 0, 7, "K")
+    cv.vline(41, 0, 7, "K")
+    cv.hline(0, 41, 0, "K")
+
+
+@piece("outtray", 42, 20)
 def outtray(cv: Canvas):
-    """Where a cleared change goes. Same form as the in-tray, olive not steel,
-    so the pair reads as in and out rather than two of the same thing."""
-    cv.rect(0, 6, 39, 17, "O")
-    cv.frame(0, 6, 39, 17, "K")
-    cv.hline(1, 38, 7, "C")
-    cv.vline(0, 0, 6, "K")
-    cv.vline(39, 0, 6, "K")
-    cv.hline(0, 39, 0, "K")
+    cv.box(0, 7, 41, 19, "W1", "W3", "W2")
+    cv.vline(0, 0, 7, "K")
+    cv.vline(41, 0, 7, "K")
+    cv.hline(0, 41, 0, "K")
 
 
-@piece("stamppad", 26, 12)
-def stamppad(cv: Canvas):
-    """The ink pad the stamp comes back to."""
-    cv.rect(0, 4, 25, 11, "B")
-    cv.frame(0, 4, 25, 11, "K")
-    cv.rect(2, 0, 23, 5, "B")
-    cv.frame(2, 0, 23, 5, "K")
-    cv.rect(4, 1, 21, 3, "R")                   # exposed ink
+@piece("mug", 18, 18)
+def mug(cv: Canvas):
+    cv.box(1, 4, 12, 17, "P1", None, "P2")
+    cv.rect(3, 6, 10, 8, "W4")
+    cv.hline(3, 10, 6, "W2")
+    cv.box(13, 8, 16, 13, "P1", None, "P2")
+    cv.rect(14, 10, 15, 11, "N")
 
 
-@piece("nameplate", 44, 12)
-def nameplate(cv: Canvas):
-    """A brass nameplate. It says what this desk is for."""
-    cv.rect(0, 3, 43, 11, "A")
-    cv.frame(0, 3, 43, 11, "K")
-    cv.hline(1, 42, 4, "W")
-    cv.rect(2, 6, 41, 8, "t")
-    cv.rect(0, 0, 43, 3, "B")
-    cv.frame(0, 0, 43, 3, "K")
+@piece("plant", 30, 44)
+def plant(cv: Canvas):
+    """Fuller fronds. A one-pixel stroke reads as wire, not a plant."""
+    cv.box(7, 30, 22, 41, "R", "r", "r")
+    cv.box(5, 26, 24, 31, "R", "r", "r")
+    cv.rect(8, 29, 21, 30, "W4")
+
+    def frond(x, y, h, tone):
+        cv.vline(x, y, y + h, tone)
+        for d in range(2, h, 3):
+            cv.rect(x - 2, y + d, x - 1, y + d + 1, tone)
+            cv.rect(x + 1, y + d + 2, x + 2, y + d + 3, tone)
+        cv.set(x, y - 1, tone)
+
+    frond(15, 2, 25, "gr")
+    frond(9, 8, 19, "g2")
+    frond(21, 8, 19, "g2")
+    frond(6, 15, 12, "gr")
+    frond(24, 15, 12, "gr")
+    cv.shadow(6, 42, 23, 42, "F2")
 
 
-@piece("bin", 22, 26)
+@piece("bin", 24, 28)
 def bin_(cv: Canvas):
-    """A wastebasket. Overruled precedents end up somewhere."""
-    for y in range(4, 25):
-        inset = (y - 4) // 8
-        cv.hline(2 + inset, 19 - inset, y, "C")
+    for y in range(4, 26):
+        inset = (y - 4) // 9
+        cv.hline(2 + inset, 21 - inset, y, "M1")
         cv.set(1 + inset, y, "K")
-        cv.set(20 - inset, y, "K")
-    cv.rect(0, 1, 21, 4, "c")
-    cv.frame(0, 1, 21, 4, "K")
-    cv.hline(3, 18, 25, "K")
-    for x in (6, 11, 16):                       # mesh
-        cv.vline(x, 6, 22, "c")
+        cv.set(22 - inset, y, "K")
+    cv.box(0, 1, 23, 5, "M2", "M3", "M2")
+    for x in (7, 12, 17):
+        cv.vline(x, 7, 24, "M2")
+    cv.shadow(3, 27, 20, 27, "F2")
 
 
-@piece("rug", 130, 26)
+@piece("rug", 140, 30)
 def rug(cv: Canvas):
-    """A rug under the desk. It stops the floor being an empty plane."""
-    cv.rect(0, 0, 129, 25, "b1")
-    cv.frame(0, 0, 129, 25, "K")
-    cv.frame(3, 3, 126, 22, "A")
-    cv.frame(5, 5, 124, 20, "b1")
-    for x in range(9, 122, 8):                  # weave
-        cv.vline(x, 7, 18, "B")
-    cv.hline(0, 129, 0, "K")
+    cv.box(0, 0, 139, 29, "b1", None, "r")
+    cv.frame(4, 4, 135, 25, "b4")
+    cv.frame(6, 6, 133, 23, "b1")
+    cv.grain(8, 8, 131, 21, "r", step=3)
+    for x in range(10, 130, 10):
+        cv.vline(x, 9, 20, "b4")
+
+
+@piece("nameplate", 46, 14)
+def nameplate(cv: Canvas):
+    cv.box(0, 4, 45, 13, "b4", "A", "W2")
+    cv.box(0, 0, 45, 4, "W2", "W1", "W4")
+
+
+@piece("stamppad", 28, 14)
+def stamppad(cv: Canvas):
+    cv.box(0, 5, 27, 13, "W4", "W2", "W4")
+    cv.box(3, 0, 24, 6, "W2", "W1", "W4")
+    cv.rect(5, 2, 22, 4, "R")
 
 
 # ---- sheet ---------------------------------------------------------------
@@ -394,11 +327,18 @@ def main() -> int:
     im, meta = sheet()
     im.save(OUT / "office.png")
     im.resize((im.width * 4, im.height * 4), Image.NEAREST).save(OUT / "office@4x.png")
+    # Tileable surfaces need their own files: CSS cannot crop one piece out of
+    # an atlas and repeat only that, so a `repeat` background of the sheet tiles
+    # the whole sheet - desks and cabinets scattered across the wall.
+    for name in ("brick", "floor"):
+        w, h, fn = PIECES[name]
+        cv = Canvas(w, h)
+        fn(cv)
+        cv.image().save(OUT / f"{name}.png")
+    meta["tiles"] = ["brick", "floor"]
     (OUT / "office.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     print(f"  {len(meta['pieces'])} pieces -> {OUT / 'office.png'} "
           f"({meta['sheet']['w']}x{meta['sheet']['h']})")
-    for name, box in meta["pieces"].items():
-        print(f"    {name:<9} {box['w']:>3}x{box['h']:<3} at x={box['x']}")
     return 0
 
 
