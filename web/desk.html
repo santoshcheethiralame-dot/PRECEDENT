@@ -104,16 +104,26 @@ const PX = 4;                       // integer scale for every sprite
 // the sprite sheet can never disagree about scale.
 // The desk top surface sits at y=126. Anything ON the desk has its BOTTOM at
 // 127, or it looks sunk into the wood.
-const ROOM = { w: 300, h: 180, deskTop: 126 };
+//
+// CLERK_CUT is how far down the clerk the desk edge falls. At 46 the desk hides
+// it from the belt down, which is what sitting at a desk looks like. Anything
+// less and the clerk appears to be standing on the furniture - which is exactly
+// how the first version read.
+const ROOM = { w: 300, h: 180, deskTop: 126, clerkCut: 46 };
+
+// `back` is painted before the clerk, `front` after, so the desk occludes the
+// lower body instead of the clerk floating on top of it.
 const LAYOUT = [
-  { piece: "chart",   x: 14,  y: 18,  go: "#ablation", title: "the evidence" },
-  { piece: "cabinet", x: 232, y: 26,  go: "#docket",   title: "the docket" },
-  { piece: "desk",    x: 78,  y: 126 },
-  { piece: "lamp",    x: 86,  y: 83 },                       // 83 + 44 = 127
-  { piece: "papers",  x: 176, y: 107, id: "sprite-papers" }, // 107 + 20 = 127
-  { piece: "mug",     x: 198, y: 111 },                      // 111 + 16 = 127
-  { piece: "plant",   x: 20,  y: 136 },   // far corner: it is decoration and
-                                        // must not crowd the verdict
+  { piece: "chart",   x: 14,  y: 18,  layer: "back",  go: "#ablation", title: "the evidence" },
+  { piece: "cabinet", x: 232, y: 26,  layer: "back",  go: "#docket",   title: "the docket" },
+  { piece: "chair",   x: 113, y: 104, layer: "back" },  // backrest crosses the
+                                                      // shoulders, not the head
+  { piece: "desk",    x: 78,  y: 126, layer: "front" },
+  { piece: "lamp",    x: 86,  y: 83,  layer: "front" },                       // 83 + 44 = 127
+  { piece: "papers",  x: 176, y: 107, layer: "front", id: "sprite-papers" },  // 107 + 20 = 127
+  { piece: "mug",     x: 198, y: 111, layer: "front" },                       // 111 + 16 = 127
+  { piece: "plant",   x: 20,  y: 136, layer: "front" },  // decoration: it must not
+                                                         // crowd the verdict
 ];
 
 let OFFICE = null, CLERK = null, clerkTimer = null;
@@ -141,8 +151,9 @@ function mountClerk(meta, stage){
   const el = document.createElement("div");
   el.className = "sprite";
   el.id = "clerk";
-  // Feet land exactly on the desk top, so the clerk stands behind it.
-  el.style.cssText = `left:${118 * PX}px; top:${(ROOM.deskTop - meta.frame.h) * PX}px;
+  // Seated: the desk edge crosses the clerk at the belt, and the desk is
+  // painted afterwards so it covers everything below.
+  el.style.cssText = `left:${118 * PX}px; top:${(ROOM.deskTop - ROOM.clerkCut) * PX}px;
     width:${meta.frame.w * PX}px; height:${meta.frame.h * PX}px;
     background-image:url("sprites/clerk.png");
     background-size:auto ${meta.frame.h * PX}px;`;
@@ -287,8 +298,11 @@ Promise.all([
   const stage = document.getElementById("stage");
   stage.style.width = ROOM.w * PX + "px";
   stage.style.height = ROOM.h * PX + "px";
-  for (const spec of LAYOUT) place("sprites/office.png", office, spec, stage);
+  for (const spec of LAYOUT.filter(s => s.layer === "back"))
+    place("sprites/office.png", office, spec, stage);
   mountClerk(clerk, stage);
+  for (const spec of LAYOUT.filter(s => s.layer === "front"))
+    place("sprites/office.png", office, spec, stage);
   document.getElementById("sprite-papers").style.display = "none";
   clerkState("dormant");
   connect();

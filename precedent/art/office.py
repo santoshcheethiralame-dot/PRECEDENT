@@ -102,6 +102,27 @@ def cabinet(cv: Canvas):
         cv.frame(8, y + 4, 18, y + 7, "K")
 
 
+# ---- the chair -----------------------------------------------------------
+
+@piece("chair", 62, 40)
+def chair(cv: Canvas):
+    """An office chair seen from behind the sitter.
+
+    Only the backrest and the shoulders of the frame are ever visible - the
+    clerk covers the middle and the desk covers the rest. It exists so the
+    clerk reads as SITTING rather than standing on the furniture.
+    """
+    cv.rect(0, 0, 61, 27, "t")                  # backrest
+    cv.frame(0, 0, 61, 27, "K")
+    cv.hline(1, 60, 1, "T")                     # top rail highlight
+    cv.rect(4, 4, 57, 23, "B")                  # padded panel
+    cv.frame(4, 4, 57, 23, "K")
+    for y in (9, 15, 21):                       # stitching
+        cv.hline(6, 55, y, "t")
+    cv.rect(27, 28, 34, 39, "t")                # post
+    cv.frame(27, 28, 34, 39, "K")
+
+
 # ---- the wall chart ------------------------------------------------------
 
 @piece("chart", 76, 56)
