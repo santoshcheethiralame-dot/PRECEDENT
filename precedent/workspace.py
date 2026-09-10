@@ -25,6 +25,12 @@ def restore(seed: Path, dst: Path) -> None:
     change a run is being judged on.
     """
     seed, dst = Path(seed), Path(dst)
+    s_abs, d_abs = seed.resolve(), dst.resolve()
+    if s_abs == d_abs or s_abs in d_abs.parents:
+        # A seed is a fixture. Restoring onto it - or into it - lets a run write
+        # its own results back into the thing every later run is measured
+        # against, and every result after that is quietly wrong.
+        raise ValueError(f"refusing to restore onto the seed itself: {d_abs}")
     dst.mkdir(parents=True, exist_ok=True)
     for cache in list(dst.rglob("__pycache__")):
         shutil.rmtree(cache, ignore_errors=True)

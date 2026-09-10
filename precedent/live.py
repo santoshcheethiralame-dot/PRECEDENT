@@ -42,6 +42,13 @@ TASKS = [
     "Add a last_visit field to the Patient model.",
 ]
 
+AGENTS_MD = """# Bengaluru Dental - front desk
+
+`models/patient.py` declares which columns the app reads.
+`store.py` builds the database from the files in `migrations/`.
+`python oracle.py` checks the app can still read its patients.
+"""
+
 MODEL = "opencode/nemotron-3.5-lightning-free"
 ARMS = ("off", "advise", "enforce")   # A: nothing · B: prose · C: gates
 
@@ -59,12 +66,72 @@ def _reset_ledger(repo: Path) -> None:
         shutil.copy2(pristine, live)
 
 
+def setup(seed: Path, repo: Path) -> dict:
+    """Build the trial workspace once, and commit it as the baseline.
+
+    The agent's own configuration - its plugin, its permissions, its AGENTS.md -
+    is NOT part of the seed, so restoring the seed over the workspace deletes it.
+    That is how an earlier run silently disarmed itself: the plugin went away on
+    trial one and every arm after that was a bare agent with no memory, printing
+    numbers that looked like a result. So the config is installed here, committed,
+    and each trial resets with git rather than by restoring the seed again.
+    """
+    from .demo import teach
+
+    if repo.exists():
+        shutil.rmtree(repo, ignore_errors=True)
+    restore(seed, repo)
+
+    # Teach first: it dirties the tree, and the baseline must be the seed.
+    led = Ledger(repo / ".precedent" / "ledger.db")
+    taught = teach(led, repo)
+    led.close()
+    restore(seed, repo)
+    shutil.copy2(repo / ".precedent" / "ledger.db", repo / ".precedent" / "ledger.seed.db")
+
+    # The agent's own configuration goes in LAST, because restore() deletes
+    # anything the seed does not contain - which is how the plugin vanished
+    # from an earlier run and left every arm identical.
+    plugins = repo / ".opencode" / "plugins"
+    plugins.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(ROOT / "plugin" / "precedent.ts", plugins / "precedent.ts")
+    (repo / "opencode.json").write_text(json.dumps({
+        "$schema": "https://opencode.ai/config.json",
+        "permission": {"edit": "allow", "bash": "allow", "webfetch": "deny"},
+    }, indent=2), encoding="utf-8")
+    (repo / "AGENTS.md").write_text(AGENTS_MD, encoding="utf-8")
+
+    _git(repo, "init", "-q")
+    _git(repo, "add", "-A")
+    _git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "baseline")
+    return taught
+
+
+def _reset_tree(repo: Path) -> None:
+    """Back to the baseline commit, without creating one.
+
+    Committing here instead - which an earlier version did - folds the previous
+    trial's work into HEAD, so `git diff HEAD` comes back empty and the recorder
+    reports that the agent touched nothing at all.
+    """
+    _git(repo, "checkout", "--", ".")
+    _git(repo, "clean", "-fdq")
+
+
+def _armed(repo: Path, led: Ledger) -> None:
+    """Refuse to start unless the treatment can actually be applied."""
+    plugin = repo / ".opencode" / "plugins" / "precedent.ts"
+    if not plugin.is_file():
+        raise RuntimeError(f"the plugin is not installed at {plugin}")
+    binding = [h for h in led.holdings() if h["status"] == "binding"]
+    if not binding:
+        raise RuntimeError("the ledger holds no binding precedent; there is nothing to enforce")
+
+
 def trial(repo: Path, seed: Path, led: Ledger, task: str, model: str = MODEL,
           timeout: int = 420, mode: str = "enforce") -> dict:
-    restore(seed, repo)
+    _reset_tree(repo)
     _reset_ledger(repo)
-    _git(repo, "add", "-A")
-    _git(repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "reset")
 
     t0 = time.time()
     # opencode is a .cmd shim on Windows, so it needs a shell and one string.
@@ -116,7 +183,10 @@ def main(n: int | None = None, model: str = MODEL, out: Path | None = None,
     """
     seed = ROOT / "seeds" / "clinic"
     repo = (WORKROOT / "trial").resolve()
+    taught = setup(seed, repo)
     led = Ledger(repo / ".precedent" / "ledger.db")
+    _armed(repo, led)
+    print(f"  armed: {taught['status']} - {taught['says']}", flush=True)
     tasks = TASKS[:n] if n else TASKS
 
     rows = []
@@ -133,8 +203,22 @@ def main(n: int | None = None, model: str = MODEL, out: Path | None = None,
                   f"  halted={r.get('halted')}  touched={r['touched']}", flush=True)
 
     by_arm = {m: score([r for r in rows if r.get("mode") == m]) for m in arms}
+
+    # A disarmed run produces numbers that look exactly like a result. The only
+    # honest thing to do with one is refuse to report it.
+    invalid = []
+    if "enforce" in arms:
+        e = [r for r in rows if r.get("mode") == "enforce"]
+        if not any(r.get("halted") or r.get("fired") for r in e):
+            invalid.append("the enforce arm never halted or fired a precedent - "
+                           "the treatment was not engaged")
+    if all(not r.get("touched") for r in rows):
+        invalid.append("the recorder saw no file changes in any trial - "
+                       "the workspace reset is wrong")
+
     report = {"generated": time.strftime("%Y-%m-%d %H:%M"), "model": model,
               "agent": "opencode", "arms": list(arms), "by_arm": by_arm,
+              "valid": not invalid, "invalid_because": invalid,
               "score": score(rows), "rows": rows}
     out = out or ROOT / "bench" / "live.json"
     out.parent.mkdir(parents=True, exist_ok=True)
