@@ -93,7 +93,9 @@
      Ruled stock with a red margin and punched holes, butted straight up
      against the floor so the page reads as one continuous place rather than
      a scene with a list underneath it. */
-  .ledger{max-width:1140px;margin:0 auto;padding:0 22px;position:relative;top:-4px}
+  /* Width is set from the room at boot so the summary starts exactly where the
+     bookcase does, instead of floating in the middle of the page. */
+  .ledger{margin:0 auto;padding:0;position:relative;top:-4px}
   /* One long list of seventeen rules is a wall of text. It folds. */
   #ledgerfold summary{display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;
                       list-style:none;cursor:pointer;user-select:none;
@@ -209,7 +211,9 @@ const LAYOUT = [
   // The bookcase HUGS the wall: its base sits on the wall/floor junction and
   // its top lines up with the window and the notice board. Standing it out on
   // the boards made it look like it had been shoved into the middle of the room.
-  { piece: "bookcase",  x: 18,  y: 12,  layer: "back" },   //  12 + 148 = 160
+  // Base 8px onto the floorboards. Flush with the wall/floor junction it read
+  // as a painting hung on the bricks rather than furniture standing in a room.
+  { piece: "bookcase",  x: 18,  y: 18,  layer: "back" },   //  18 + 148 = 166
   { piece: "window",    x: 160, y: 14,  layer: "back" },
   { piece: "corkboard", x: 262, y: 12,  layer: "back", id: "sprite-cork" },
 
@@ -226,7 +230,7 @@ const LAYOUT = [
   { piece: "papers",    x: 257, y: 113, layer: "front", id: "sprite-papers" },
 
   // floor: one either side of the desk, so nothing overlaps anything
-  { piece: "bin",       x: 122, y: 192, layer: "front" },   // 192 + 28 = 220
+  { piece: "bin",       x: 74,  y: 192, layer: "front" },   // 192 + 28 = 220
   { piece: "plant",     x: 306, y: 176, layer: "front" },   // 176 + 44 = 220
 ];
 
@@ -439,6 +443,7 @@ Promise.all([
 
   const room = document.getElementById("room");
   room.style.width = ROOM.w * PX + "px";
+  document.querySelector(".ledger").style.width = ROOM.w * PX + "px";
   room.style.height = ROOM.h * PX + "px";
   for (const spec of LAYOUT.filter(s => s.layer === "back")) place(office, spec, room);
   mountClerk(clerk, room);
