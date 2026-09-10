@@ -25,7 +25,7 @@ def test_a_mined_rule_does_not_claim_it_was_tested():
     class V:
         holding_id = 2
         established = 0
-        empanel = {"fire": "n/a", "false": "0/0", "tested": 0}
+        empanel = {"mined": {"support": 11}, "fire": "n/a", "tested": 0}
         says = "Changing results/* means changing docs/ too."
         rule = "co_change( results/* -> docs/** )"
         reason = "results/x.json changed, nothing under docs/** did"

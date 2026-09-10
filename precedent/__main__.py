@@ -33,7 +33,7 @@ def cmd_gate(a) -> int:
         print(json.dumps([v.__dict__ for v in verdicts], indent=2))
     elif verdicts:
         for v in verdicts:
-            print(render.halt_card(v))
+            print(render.halt_card(v, repo=repo, touched=ch.touched))
     else:
         print(render.clear_line())
     return 1 if verdicts else 0

@@ -26,17 +26,34 @@ def _row(text: str, code: str = "", pad: int = 2) -> str:
     return f"{_c('|', VER)}{_c(body, code) if code else body}{fill}{_c('|', VER)}"
 
 
-def halt_card(v, number: int | None = None) -> str:
+def halt_card(v, number: int | None = None, repo=None,
+              touched: list[str] | None = None) -> str:
     n = number if number is not None else v.holding_id
     when = time.strftime("%d %b %Y", time.localtime(v.established)).upper()
     e = v.empanel or {}
     if e.get("tested"):
         receipt = (f"empanelled {e.get('fire','?')} fire  {e.get('false','?')} false"
                    f"    cited {v.cited}")
-    else:
-        # A rule mined from history has no failing case to replay, and "0/0"
-        # would imply it was tested and came back clean.
+    elif e.get("taught"):
+        # Authored by the person, not derived from anything. Saying "mined from
+        # history" here would credit evidence that was never gathered.
+        receipt = f"you wrote this rule    cited {v.cited}"
+    elif e.get("mined"):
         receipt = f"mined from history, not empanelled    cited {v.cited}"
+    else:
+        receipt = f"not empanelled    cited {v.cited}"
+
+    # A verdict tells the agent it is wrong. An instruction tells it what to do.
+    step = []
+    if repo is not None:
+        try:
+            from .nextstep import suggest
+            hint = suggest(v, repo, touched or [])
+        except Exception:
+            hint = ""
+        if hint:
+            step = [_row(""), _row(f"DO THIS NEXT:  {hint}", AMB)]
+
     top = _c("+" + "-" * (W - 2) + "+", VER)
     sep = _c("+" + "-" * (W - 2) + "+", VER)
     return "\n".join([
@@ -49,8 +66,7 @@ def halt_card(v, number: int | None = None) -> str:
         _row(v.reason, DIM),
         _row(""),
         _row(receipt, DIM),
-        top,
-    ])
+    ] + step + [top])
 
 
 def clear_line() -> str:

@@ -21,7 +21,7 @@ from pathlib import Path
 from .change import Change
 from .db import Ledger, ledger_path
 from .harvest import Signal, human_reject
-from . import gate, recall, record, shell, templates, transfer
+from . import gate, nextstep, recall, record, shell, templates, transfer
 
 PORT = 4000
 _ledgers: dict[str, Ledger] = {}
@@ -68,8 +68,10 @@ def gate_check(repo: str, pending: list[str] | None = None) -> dict:
     root = str(Path(repo).resolve())
     verdicts = gate.evaluate(led, root, _tree(repo, pending),
                              borrowed=transfer.borrowed(root))
+    ch = _tree(repo, pending)
     return {"block": bool(verdicts), "verdicts": [
         {"n": v.holding_id, "says": v.says, "rule": v.rule, "reason": v.reason,
+         "next": nextstep.suggest(v, Path(repo), ch.touched),
          "cited": v.cited, "empanel": v.empanel,
          "when": time.strftime("%d %b %Y", time.localtime(v.established))}
         for v in verdicts]}

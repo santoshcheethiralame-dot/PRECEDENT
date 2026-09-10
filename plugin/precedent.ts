@@ -27,6 +27,7 @@ const WRITERS = new Set(["write", "edit", "patch", "multiedit"])
 
 type Verdict = {
   n: number
+  next?: string
   says: string
   rule: string
   reason: string
@@ -83,9 +84,12 @@ const card = (verdicts: Verdict[]): string => {
     lines.push(`  Reason: ${v.reason}`)
     const e = (v.empanel ?? {}) as Record<string, string>
     if (e.fire) lines.push(`  Tested: ${e.fire} fire, ${e["false"]} false positives.`)
+    // A verdict tells the agent it is wrong; an instruction tells it what to do.
+    // Without this a small model retries the same edit and stalls.
+    if (v.next) lines.push(`  DO THIS NEXT: ${v.next}`)
   }
   lines.push("")
-  lines.push("Do the missing work in the same change, then try again.")
+  lines.push("Do the work named above in the same change, then try again.")
   return lines.join("\n")
 }
 

@@ -28,7 +28,14 @@ def _learn(led: Ledger, res, repo: Path, output: str) -> dict:
                             Change.since(repo, res.before, res.commands), use_model=False)
 
 
-def run_arm(arm: str, seed: int, p_recall: float, tasks) -> list[dict]:
+def run_arm(arm: str, seed: int, p_recall: float, tasks, p_comply: float = 1.0) -> list[dict]:
+    """p_comply is the probability that a blocked agent does what the card asked.
+
+    At 1.0 the harness hands the agent the exact companion it skipped, so the
+    result is an UPPER BOUND: it measures whether the rule identified the right
+    missing work, not whether a real agent acts on being told. Anything below
+    1.0 models an agent that is stopped, told, and sometimes ignores it.
+    """
     base = WORK / arm / str(seed)
     led = Ledger(base / "ledger.db")
     led.wipe()
@@ -44,7 +51,8 @@ def run_arm(arm: str, seed: int, p_recall: float, tasks) -> list[dict]:
 
         cb = None
         if arm == "C":
-            cb = lambda verdicts, t=task, s=skipped: agent.repair(t, s, verdicts)
+            cb = (lambda verdicts, t=task, s=skipped:
+                  agent.repair(t, s, verdicts, comply=rng.random() < p_comply))
 
         res = harness.run(repo, task.id, led, arm=arm, oracle=ORACLE,
                           scripted=list(actions), on_block=cb, seed=seed)
@@ -55,7 +63,9 @@ def run_arm(arm: str, seed: int, p_recall: float, tasks) -> list[dict]:
             record.file_free_signals(led, res.run_id, str(repo.resolve()),
                                      res.watch, Change.since(repo, res.before, res.commands))
 
-        rows.append({"arm": arm, "seed": seed, "order": n, "task": task.id,
+        rows.append({
+            "p_comply": p_comply,
+            "arm": arm, "seed": seed, "order": n, "task": task.id,
                      "repo": task.repo, "trap": task.trap or "", "passed": res.passed,
                      "blocked": res.blocked, "fired": sorted(set(res.fired)),
                      "skipped": len(skipped)})
