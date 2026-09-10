@@ -34,7 +34,23 @@ python -m precedent gate .                                # exits 1 if a rule fi
 python -m precedent off 4                                 # this rule is wrong
 python -m precedent status                                # what it caught this week
 python -m precedent hook                                  # git pre-commit hook
+python -m precedent watch                                 # live, with any agent
 ```
+
+`watch` is the one that works everywhere. It reads **git, not the agent**, so
+opencode, Cursor, Claude Code and a person typing by hand all get the same
+treatment, and there is no plugin to keep up to date per harness:
+
+```
+  HALT  Changing models/*.py means changing migrations/ too.
+        models/patient.py changed, nothing under migrations/** did
+        do this next: create migrations/002_patient.sql
+  CLEARED  No 1 satisfied. The change may land.
+```
+
+The opencode plugin is still worth installing for the one thing a watcher
+cannot do: stop a write **before** it lands. The watcher only reports — but it
+reports every rule's decision, including the ones that looked and stayed quiet.
 
 **`init` is the one that matters**, because an empty ledger on day one is
 useless. It reads your commit history and proposes rules before anything has
@@ -117,7 +133,7 @@ the OpenAI-compatible protocol, so Ollama, Groq, Cerebras, OpenRouter and Gemini
 all work; set `PRECEDENT_BASE_URL`, `PRECEDENT_MODEL`, `PRECEDENT_API_KEY`.
 With no model reachable, the deterministic fallback takes over.
 
-## The number
+## The number, and what it depends on
 
 Two arms, five seeds, thirty tasks across three repos, three hundred runs.
 Identical tasks, identical agent, identical seeds — **the only thing that differs
@@ -128,11 +144,31 @@ between arms is whether precedent is enforced.**
 | pass rate | 53.3% | **74.0%** |
 | pass rate on trapped tasks | 39.1% | **66.1%** |
 | **repeat-failure rate** | **58.1%** | **22.1%** |
-| false positives (on control tasks) | 0.0% | 8.6% |
+| false positives (on control tasks) | 0.0% | 0.0% |
 | regressions vs arm A | — | **0** |
 
-Repeat-failure rate is the one that matters: of the tasks whose trap class had
-already bitten once, how many bit again. Memory cuts it by **62%**.
+**That figure is a ceiling, and saying so is the honest part.** It was measured
+with a blocked agent that always does what the halt card asks. Sweeping that
+assumption is the more useful result:
+
+```bash
+python -m precedent bench --compliance      # writes bench/compliance.json
+```
+
+| if the agent obeys the card... | repeat-failure | recovery | vs no memory |
+|---|---|---|---|
+| never | 64.6% | 43.2% | **worse** |
+| a quarter of the time | 52.1% | 59.5% | break-even |
+| half | 37.5% | 78.4% | better |
+| three quarters | 35.4% | 81.1% | better |
+| always | 25.0% | 89.7% | the headline |
+
+Arm A, for comparison, sits at **50.0%** repeat-failure.
+
+**Below roughly 25% compliance this makes an agent worse, not better.** Blocking
+something that then ignores you costs a run and buys nothing. So the gate is not
+the mechanism — the *instruction* is, which is why every halt card names the
+exact next action rather than saying "do the missing work".
 
 ### It starts level and pulls away
 
@@ -210,9 +246,26 @@ the same task is halted and then succeeds — and `test_loop.py` asserts every
 step of that, including that an unrelated edit is *not* gated.
 
 ```
-python -m pytest -q        # 66 passed
+python -m pytest -q        # 125 passed
 ```
 
-**Not built yet, and not claimed:** arm B. Its mechanism is whether a language
-model obeys a paragraph in its prompt, so it needs a real provider in all three
-arms — and until it runs, *"gates beat warnings"* is a thesis, not a finding.
+**What the pack ships with.** `init` also installs the mistakes every agent
+makes, before you have been burned by each one: committed keys and tokens, a
+`pdb` breakpoint left in, a manifest without its lockfile, and `DROP COLUMN` in
+a migration all stop the change. Deleting a test, skipping one, a leftover
+`console.log`, a swallowed exception and a stray TODO are said out loud and get
+out of the way. Nineteen rules, installed only where a repo can trip over them.
+
+**Beyond structure.** `blast_radius` walks the call graph and names the callers
+you left behind when a signature changed. `no_quadratic` catches cost
+regressions in the lines this change *added* — nested loops over one collection,
+`in` against a list inside a loop, string `+=` in a loop, a query inside a loop.
+Hallucinated imports, doc drift, measured-versus-claimed complexity and
+duplicate functions are borrowed from [sleeper](../sleeper) rather than rebuilt,
+and abstain entirely when it is not installed.
+
+**Still not claimed: arm B.** Whether a paragraph in the prompt works as well as
+a gate needs a real model in all three arms. The plugin's contract test proves
+the arms are genuinely different — `off` silent, `advise` speaking 212 characters
+of prose without blocking, `enforce` blocking — but until the comparison runs
+against a live model, *"gates beat warnings"* is a thesis, not a finding.
