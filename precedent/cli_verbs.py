@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from . import templates, verbs
+from . import mine, templates, verbs
 
 
 def _rule_text(h: dict) -> str:
@@ -18,9 +18,21 @@ def _rule_text(h: dict) -> str:
 def cmd_init(a) -> int:
     found = verbs.init(Path(a.path))
     if not found:
-        print("  nothing to learn yet.")
-        print("  no habit in this history is strong enough to be a rule, and")
-        print("  inventing one would be worse than saying so.")
+        state = mine.history_state(Path(a.path))
+        if state == "not-a-repo":
+            print("  this is not a git repository, so there is no history to read.")
+            print("  teach it directly instead:  precedent rule \"src/*.py needs tests/\"")
+        elif state == "no-commits":
+            print("  this repository has no commits yet, so there is nothing to learn from.")
+            print("  teach it directly instead:  precedent rule \"src/*.py needs tests/\"")
+        elif state == "thin":
+            print("  too little history to be sure of anything (under 20 commits).")
+            print("  come back later, or teach it directly:")
+            print("    precedent rule \"src/*.py needs tests/\"")
+        else:
+            print("  nothing to learn yet.")
+            print("  no habit in this history is strong enough to be a rule, and")
+            print("  inventing one would be worse than saying so.")
         return 0
     print()
     print(f"  {len(found)} rule(s) proposed, all advisory until you confirm them:")

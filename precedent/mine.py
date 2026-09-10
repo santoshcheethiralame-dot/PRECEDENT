@@ -141,3 +141,18 @@ def _pattern_to_glob(pattern: str) -> str | None:
 def propose(repo: Path, limit: int = 600) -> list[dict]:
     """Everything this repository can tell us before anything has gone wrong."""
     return pairings(commits(Path(repo), limit)) + declared(Path(repo))
+
+
+def history_state(repo) -> str:
+    """Why `init` found nothing - the three answers need different next steps."""
+    from pathlib import Path as _P
+    from . import shell
+    repo = _P(repo)
+    if not (repo / ".git").exists():
+        r = shell.run("git rev-parse --git-dir", repo)
+        if r.returncode != 0:
+            return "not-a-repo"
+    r = shell.run("git rev-list --count HEAD", repo)
+    if r.returncode != 0 or not (r.stdout or "").strip().isdigit():
+        return "no-commits"
+    return "thin" if int(r.stdout.strip()) < 20 else "no-habit"

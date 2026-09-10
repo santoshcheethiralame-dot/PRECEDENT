@@ -157,3 +157,26 @@ def test_hook_lands_where_git_will_run_it(repo):
 
 def test_hook_declines_outside_a_git_repo(tmp_path):
     assert verbs.hook(tmp_path) is None
+
+
+def test_init_says_which_kind_of_nothing_it_found(tmp_path):
+    """'Nothing to learn' is three different problems with three different
+    fixes, and a person who is told the wrong one just retries."""
+    import subprocess
+    from precedent import mine
+
+    plain = tmp_path / "plain"
+    plain.mkdir()
+    assert mine.history_state(plain) == "not-a-repo"
+
+    fresh = tmp_path / "fresh"
+    fresh.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=fresh, capture_output=True)
+    assert mine.history_state(fresh) == "no-commits"
+
+    for i in range(3):
+        (fresh / f"f{i}.txt").write_text("x", encoding="utf-8")
+        subprocess.run(["git", "add", "-A"], cwd=fresh, capture_output=True)
+        subprocess.run(["git", "-c", "user.email=t@t", "-c", "user.name=t",
+                        "commit", "-qm", f"c{i}"], cwd=fresh, capture_output=True)
+    assert mine.history_state(fresh) == "thin", "under 20 commits proves nothing"
