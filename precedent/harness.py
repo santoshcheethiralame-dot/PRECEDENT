@@ -70,9 +70,16 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
 
     system = SYSTEM
     if arm == "B":
-        brief = recall.briefing(led, str(repo), task)
-        if brief:
-            system += "\n\n" + brief
+        # Every rule the gate would apply, not the ones a bag-of-words search
+        # matched. briefing() filters on score > 0 and returns nothing when the
+        # task shares no token with the rule - which makes arm B an empty prompt
+        # and turns the comparison into full knowledge against no knowledge.
+        rows = recall.everything(led, str(repo), task)
+        if rows:
+            lines_ = ["Rules this repository has learned from its own past failures.",
+                      "They are not enforced. Follow them if they apply."]
+            lines_ += ["- " + r["says"] for r in rows]
+            system += chr(10) + chr(10) + chr(10).join(lines_)
 
     history: list[str] = [f"TASK: {task}"]
     script = list(scripted or [])

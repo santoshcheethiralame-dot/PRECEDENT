@@ -78,3 +78,40 @@ def test_similar_still_filters_for_retrieval(repo):
     led = Ledger(ledger_path(repo))
     assert recall.similar(led, str(repo.resolve()), "zzzz qqqq") == []
     led.close()
+
+
+def test_the_harness_arm_b_also_gets_every_rule(repo, monkeypatch):
+    """The same fairness bug existed in two places. serve.advise was fixed and
+    harness.py was not, so a benchmark arm B would still have run on an empty
+    prompt while arm C's gate applied every rule."""
+    import precedent.harness as H
+    from precedent.db import Ledger, ledger_path
+
+    captured = {}
+
+    def fake_chat(prompt, system="", **kw):
+        captured["system"] = system
+        return '{"tool": "done"}'
+
+    monkeypatch.setattr(H.provider, "chat", fake_chat)
+    led = Ledger(ledger_path(repo))
+    H.run(repo, "something with no shared words at all", led, arm="B", oracle="python -c pass")
+    led.close()
+
+    assert "migrations" in captured.get("system", ""), \
+        "arm B ran without being told the rule the gate would have enforced"
+    assert "not enforced" in captured["system"].lower(), "it must read as advice"
+
+
+def test_harness_arm_a_is_told_nothing(repo, monkeypatch):
+    import precedent.harness as H
+    from precedent.db import Ledger, ledger_path
+
+    captured = {}
+    monkeypatch.setattr(H.provider, "chat",
+                        lambda prompt, system="", **kw: captured.setdefault("system", system)
+                        or '{"tool": "done"}')
+    led = Ledger(ledger_path(repo))
+    H.run(repo, "add a field", led, arm="A", oracle="python -c pass")
+    led.close()
+    assert "migrations" not in captured.get("system", "")
