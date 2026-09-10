@@ -43,6 +43,8 @@ P = {
     "t": (0x54, 0x3A, 0x27, 255),     # trouser shadow
     "B": (0x3A, 0x2C, 0x25, 255),     # shoes / belt
     "D": (0x5E, 0x53, 0x48, 255),     # dormant wash
+    "O": (0x7C, 0x8A, 0x72, 255),     # filing-cabinet olive
+    "N": (0x17, 0x12, 0x19, 255),     # the room behind, for knee holes
 }
 
 
