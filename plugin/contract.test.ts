@@ -52,6 +52,30 @@ await hooks["chat.message"]({ parts: [{ type: "text", text: "add a field to the 
 await hooks["experimental.chat.system.transform"]({}, output)
 check("system transform runs without throwing", true, `${output.system.length} addenda`)
 
+// ---- the three arms -----------------------------------------------------
+// Arm B has silently been a no-op before. These assert the arms are genuinely
+// different things, without needing a model to find out.
+for (const mode of ["off", "advise", "enforce"]) {
+  process.env.PRECEDENT_MODE = mode
+  const mod: any = await import(`./precedent.ts?m=${mode}`)
+  const h: any = await mod.Precedent({ directory: repo, worktree: repo })
+
+  const sys = { system: [] as string[] }
+  await h["chat.message"]({ parts: [{ type: "text", text: "add an email field" }] }, {})
+  await h["experimental.chat.system.transform"]({}, sys)
+
+  let blocked = false
+  try {
+    await h["tool.execute.before"]({ tool: "edit" }, { args: { filePath: "models/patient.py" } })
+  } catch { blocked = true }
+
+  const spoke = sys.system.join("").length
+  if (mode === "off") check("off: silent, does not block", spoke === 0 && !blocked)
+  if (mode === "advise") check("advise: speaks, does not block", spoke > 0 && !blocked,
+                               `${spoke} chars of prose`)
+  if (mode === "enforce") check("enforce: blocks", blocked)
+}
+
 if (threw === null && failures === 0) console.log("\n  the plugin refuses. all checks passed.")
 else if (failures) console.log(`\n  ${failures} check(s) failed.`)
 process.exit(failures ? 1 : 0)

@@ -21,7 +21,7 @@ def repo(tmp_path, monkeypatch):
     git(r, "init", "-q")
     git(r, "add", "-A")
     git(r, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "seed")
-    monkeypatch.setattr(serve, "_ledgers", {})
+    serve.forget_ledgers()
     return r
 
 

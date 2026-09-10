@@ -23,7 +23,7 @@ def repo(tmp_path):
               ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "s"]):
         subprocess.run(c, cwd=r, capture_output=True)
     verbs.rule(r, "models/*.py needs migrations/")
-    serve._ledgers.clear()
+    serve.forget_ledgers()
     return r
 
 

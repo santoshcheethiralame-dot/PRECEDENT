@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -36,14 +37,31 @@ def emit(kind: str, **fields) -> dict:
     _events.append(ev)
     del _events[:-_EVENT_CAP]
     return ev
-_ledgers: dict[str, Ledger] = {}
+# Per-thread, not global. sqlite3 connections cannot be used from a thread other
+# than the one that opened them, and the server became threading so that an open
+# event stream could not block gate calls. Sharing one cache across threads makes
+# every request from a second connection fail.
+_local = threading.local()
+
+
+def forget_ledgers() -> None:
+    """Drop this thread's cached connections. Tests use it between repos."""
+    for led in getattr(_local, "ledgers", {}).values():
+        try:
+            led.close()
+        except Exception:
+            pass
+    _local.ledgers = {}
 
 
 def _led(repo: str) -> Ledger:
+    cache = getattr(_local, "ledgers", None)
+    if cache is None:
+        cache = _local.ledgers = {}
     key = str(Path(repo).resolve())
-    if key not in _ledgers:
-        _ledgers[key] = Ledger(ledger_path(Path(key)))
-    return _ledgers[key]
+    if key not in cache:
+        cache[key] = Ledger(ledger_path(Path(key)))
+    return cache[key]
 
 
 def _relative(repo: Path, path: str) -> str:
@@ -193,7 +211,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/v1/events"):
             return self._stream()
         if self.path.startswith("/v1/health"):
-            return self._send(200, {"ok": True, "ledgers": list(_ledgers)})
+            return self._send(200, {"ok": True, "ledgers": list(getattr(_local, "ledgers", {}))})
         self._send(404, {"error": "no such route"})
 
     def do_POST(self):
