@@ -263,21 +263,21 @@ def lamp(cv: Canvas):
     cv.shadow(5, 47, 24, 47, "W2")
 
 
-@piece("papers", 42, 26)
+@piece("papers", 34, 21)
 def papers(cv: Canvas):
-    for (dx, dy) in ((0, 6), (3, 3), (6, 0)):
-        cv.box(dx, dy, dx + 34, dy + 18, "P1", None, "P2")
-    for y in (5, 9, 13, 17):
-        cv.hline(11, 36, y, "P3")
+    for (dx, dy) in ((0, 5), (2, 2), (4, 0)):
+        cv.box(dx, dy, dx + 28, dy + 15, "P1", None, "P2")
+    for y in (4, 7, 10, 13):
+        cv.hline(9, 30, y, "P3")
 
 
-@piece("intray", 50, 24)
+@piece("intray", 42, 21)
 def intray(cv: Canvas):
-    cv.box(0, 9, 49, 23, "M1", "M3", "M2")
-    cv.dither(2, 18, 47, 22, "M2")
-    cv.vline(0, 0, 9, "K")
-    cv.vline(49, 0, 9, "K")
-    cv.hline(0, 49, 0, "K")
+    cv.box(0, 8, 41, 20, "M1", "M3", "M2")
+    cv.dither(2, 16, 39, 19, "M2")
+    cv.vline(0, 0, 8, "K")
+    cv.vline(41, 0, 8, "K")
+    cv.hline(0, 41, 0, "K")
 
 
 @piece("outtray", 42, 20)
@@ -288,13 +288,13 @@ def outtray(cv: Canvas):
     cv.hline(0, 41, 0, "K")
 
 
-@piece("mug", 22, 22)
+@piece("mug", 17, 17)
 def mug(cv: Canvas):
-    cv.box(1, 5, 15, 21, "P1", None, "P2")
-    cv.rect(3, 7, 13, 10, "W4")
-    cv.hline(3, 13, 7, "W2")
-    cv.box(16, 10, 20, 16, "P1", None, "P2")
-    cv.rect(17, 12, 19, 14, "N")
+    cv.box(1, 4, 11, 16, "P1", None, "P2")
+    cv.rect(3, 6, 9, 8, "W4")
+    cv.hline(3, 9, 6, "W2")
+    cv.box(12, 8, 15, 12, "P1", None, "P2")
+    cv.rect(13, 9, 14, 11, "N")
 
 
 @piece("plant", 30, 44)
@@ -332,21 +332,57 @@ def bin_(cv: Canvas):
     cv.shadow(3, 27, 20, 27, "F2")
 
 
-@piece("rug", 148, 32)
+@piece("rug", 156, 38)
 def rug(cv: Canvas):
-    """A runner with fringed ends. The first version was a flat slab and read
-    as a painted rectangle on the boards rather than something lying on them."""
-    cv.box(6, 0, 141, 31, "b1", None, "r")
-    cv.frame(10, 4, 137, 27, "b4")
-    cv.frame(12, 6, 135, 25, "b1")
-    cv.grain(14, 8, 133, 23, "r", step=3)
-    for x in range(20, 130, 14):                # medallions down the middle
-        cv.box(x, 12, x + 6, 19, "b4", None, "r", None)
-        cv.set(x + 3, 15, "b1")
-    for y in range(2, 30, 3):                   # fringe at both ends
-        cv.hline(0, 5, y, "P2")
-        cv.hline(142, 147, y, "P2")
-    cv.shadow(8, 31, 139, 31, "F2")
+    """A woven runner. The first two were a flat slab and then a slab with
+    white teeth for fringe; this one has a border, a repeating diamond, and a
+    fringe in the rug's own colour rather than bare paper."""
+    cv.box(7, 0, 148, 37, "b1", None, "r")
+    cv.frame(11, 4, 144, 33, "b4")          # outer band
+    cv.frame(13, 6, 142, 31, "r")
+    cv.rect(16, 9, 139, 28, "b1")           # field
+    cv.grain(17, 10, 138, 27, "r", step=4)
+
+    for cx in range(28, 136, 22):           # diamonds down the field
+        for (dx, dy) in ((0, -5), (0, 5), (-5, 0), (5, 0)):
+            cv.set(cx + dx, 18 + dy, "b4")
+        for d in range(1, 5):
+            cv.set(cx - d, 18 - (5 - d), "b4")
+            cv.set(cx + d, 18 - (5 - d), "b4")
+            cv.set(cx - d, 18 + (5 - d), "b4")
+            cv.set(cx + d, 18 + (5 - d), "b4")
+        cv.set(cx, 18, "b4")
+
+    for y in range(3, 36, 4):               # short fringe, in the rug's tone
+        cv.hline(3, 6, y, "r")
+        cv.hline(149, 152, y, "r")
+    cv.shadow(9, 37, 146, 37, "F2")
+
+
+@piece("bigplant", 44, 58)
+def bigplant(cv: Canvas):
+    """A floor plant, tall enough to hold the left corner on its own. A
+    wastebasket was too small for that much empty floor."""
+    cv.box(9, 38, 34, 54, "R", "r", "r")        # pot
+    cv.box(6, 32, 37, 40, "R", "r", "r")        # rim
+    cv.rect(10, 36, 33, 38, "W4")               # soil
+    cv.hline(11, 32, 34, "P2")                  # a highlight along the rim
+
+    def frond(x, y, h, tone, spread=3):
+        cv.vline(x, y, y + h, tone)
+        for d in range(2, h, 3):
+            cv.rect(x - spread, y + d, x - 1, y + d + 1, tone)
+            cv.rect(x + 1, y + d + 2, x + spread, y + d + 3, tone)
+        cv.set(x, y - 1, tone)
+
+    frond(22, 1, 33, "gr", 4)
+    frond(14, 6, 27, "g2", 3)
+    frond(30, 6, 27, "g2", 3)
+    frond(9, 13, 20, "gr", 3)
+    frond(35, 13, 20, "gr", 3)
+    frond(18, 17, 15, "g2", 2)
+    frond(27, 17, 15, "g2", 2)
+    cv.shadow(8, 55, 35, 55, "F2")
 
 
 @piece("nameplate", 46, 14)

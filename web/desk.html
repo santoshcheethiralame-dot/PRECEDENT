@@ -226,17 +226,20 @@ const LAYOUT = [
   { piece: "cabinet",   x: 288, y: 100, layer: "back", go: "#docket",
     title: "the docket", id: "sprite-cabinet" },
   { piece: "chair",     x: 167, y: 116, layer: "back" },
-  { piece: "rug",       x: 114, y: 186, layer: "back" },
+  { piece: "rug",       x: 110, y: 184, layer: "back" },   // centred under the desk
 
   // the centrepiece
   { piece: "desk",      x: 114, y: 140, layer: "front" },   // 114..282
   { piece: "lamp",      x: 120, y: 92,  layer: "front" },   //  92 + 48 = 140
-  { piece: "mug",       x: 204, y: 118, layer: "front" },   // 118 + 22 = 140
-  { piece: "intray",    x: 228, y: 116, layer: "front" },   // 116 + 24 = 140
-  { piece: "papers",    x: 232, y: 106, layer: "front", id: "sprite-papers" },
+  // Clear of the clerk at 174..222: his arms show at the top of the desk line
+  // and the mug was sitting on his right hand.
+  { piece: "mug",       x: 152, y: 123, layer: "front" },   // 123 + 17 = 140
+  { piece: "intray",    x: 234, y: 119, layer: "front" },   // 119 + 21 = 140
+  { piece: "papers",    x: 238, y: 112, layer: "front", id: "sprite-papers" },
 
   // floor, clear of everything above
-  { piece: "bin",       x: 44,  y: 194, layer: "front" },   // 194 + 28 = 222
+  { piece: "bigplant",  x: 38,  y: 164, layer: "front" },   // stands on the floor
+                                                            // below the bookcase plinth
   { piece: "plant",     x: 292, y: 178, layer: "front" },   // 178 + 44 = 222
 ];
 
