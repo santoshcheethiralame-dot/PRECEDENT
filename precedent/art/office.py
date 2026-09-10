@@ -181,11 +181,22 @@ def clock(cv: Canvas):
     cv.set(13, 14, "R")
 
 
-@piece("corkboard", 88, 58)
+@piece("corkboard", 116, 76)
 def corkboard(cv: Canvas):
-    cv.box(0, 0, 87, 57, "W1", "W3", "W2")
-    cv.box(3, 3, 84, 54, "b4", None, "W2")
-    cv.grain(5, 5, 82, 52, "W2", step=3)
+    """Where a firing rule gets pinned. Big enough to hold the card, so the
+    verdict never has to lie across the desk it is judging."""
+    cv.box(0, 0, 115, 75, "W1", "W3", "W2")
+    cv.box(4, 4, 111, 71, "b4", None, "W2")
+    cv.grain(6, 6, 109, 69, "W2", step=3)
+    cv.dither(6, 62, 109, 69, "W2")
+
+
+@piece("pin", 10, 10)
+def pin(cv: Canvas):
+    """A pushpin. Four of them hold a card to the board."""
+    cv.rect(3, 6, 6, 9, "W4")
+    cv.box(1, 1, 8, 6, "R", "r", "r")
+    cv.set(3, 2, "P1")
 
 
 # ---- small things ---------------------------------------------------------
