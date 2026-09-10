@@ -45,6 +45,21 @@ P = {
     "D": (0x5E, 0x53, 0x48, 255),     # dormant wash
     "O": (0x7C, 0x8A, 0x72, 255),     # filing-cabinet olive
     "N": (0x17, 0x12, 0x19, 255),     # the room behind, for knee holes
+
+    # Book spines. The office is otherwise brown on brown, and a shelf of
+    # ledgers is where colour belongs in a records room - not on the walls.
+    "b1": (0x8C, 0x3B, 0x2E, 255),    # oxblood
+    "b2": (0x4A, 0x6B, 0x7C, 255),    # slate blue
+    "b3": (0x7C, 0x8A, 0x72, 255),    # olive
+    "b4": (0xC8, 0xA2, 0x4A, 255),    # tan
+    "b5": (0x5E, 0x4A, 0x6B, 255),    # aubergine
+    "b6": (0x3F, 0x6B, 0x5A, 255),    # deep green
+
+    # Daylight through the window: the room's second light source, cool
+    # against the lamp's warm, which is what gives a flat scene depth.
+    "d1": (0x39, 0x4A, 0x5C, 255),    # sky
+    "d2": (0x51, 0x66, 0x7A, 255),    # sky, lit
+    "d3": (0x6E, 0x85, 0x99, 255),    # glare
 }
 
 

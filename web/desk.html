@@ -15,17 +15,19 @@
   main{padding:20px 22px 40px;max-width:1180px;margin:0 auto}
 
   /* the room */
-  #stage{width:1200px;height:720px}
+  #stage{width:1280px;height:800px}
   /* A floor, so the furniture stands on something instead of hanging in the
      dark. The skirting line is where the wall stops. */
-  #floor{position:absolute;left:0;right:0;bottom:0;height:48px;
+  #floor{position:absolute;left:0;right:0;bottom:0;
          background:#1C1620;border-top:4px solid var(--line)}
   @media (max-width:1240px){ #stage{transform-origin:top left} }
 
   /* the halt card slides out from under the stamp */
   /* Clear of the cabinet above and the plant across the room, so the one
      thing carrying weight on this page is never partly hidden. */
-  #halt{position:absolute;left:616px;top:508px;width:404px;display:none;z-index:5}
+  /* It lands on the desk in front of the clerk, which is where a stamped card
+     would actually go, and where nothing else is competing for the space. */
+  #halt{position:absolute;left:268px;top:522px;width:408px;display:none;z-index:5}
   #halt.on{display:block;animation:slide .28s steps(4) both}
   @keyframes slide{from{transform:translate(-22px,10px);opacity:0}to{transform:none;opacity:1}}
   #halt .no{font-family:ui-monospace,Consolas,monospace;font-size:10px;
@@ -39,11 +41,32 @@
   /* what landed on the desk */
   /* Sprites are appended after this node, so without a z-index the paper stack
      paints over the filenames and clips them. */
-  #incoming{position:absolute;left:620px;top:360px;width:260px;z-index:6;
+  #incoming{position:absolute;left:700px;top:398px;width:260px;z-index:6;
             font-family:ui-monospace,Consolas,monospace;font-size:11px;
             color:var(--paper-dim);display:none;text-shadow:0 1px 0 var(--ink)}
   #incoming.on{display:block}
   #incoming b{color:var(--paper);font-weight:400;display:block}
+
+  /* Live data drawn INTO the furniture. A cabinet that does not show its own
+     counts is a picture of a cabinet. */
+  .overlay{position:absolute;font-family:ui-monospace,Consolas,monospace;
+           pointer-events:none;z-index:4}
+  .drawer-label{font-size:11px;letter-spacing:.06em;color:var(--ink);
+                display:flex;justify-content:space-between;align-items:center}
+  .drawer-label b{font-weight:400}
+  #chartbars{display:flex;align-items:flex-end;gap:6px;height:120px}
+  #chartbars div{flex:1;background:var(--dim);min-height:3px}
+  #chartbars div.clear{background:var(--phos)}
+  #chartbars div.note{background:var(--amber)}
+  #chartbars div.halt{background:var(--stamp)}
+  #charttitle{font-size:10px;color:#6a5f52;letter-spacing:.1em}
+  #clockface{font-size:10px;color:var(--ink);text-align:center}
+  #plate{font-size:11px;letter-spacing:.14em;color:var(--ink);text-align:center}
+
+  /* The lamp actually lights something, and the pool takes the colour of the
+     verdict. It is the only element on the page that changes the room. */
+  #pool{position:absolute;border-radius:50%;pointer-events:none;z-index:1;
+        transition:background .001s steps(1),opacity .001s steps(1)}
 
   /* the panel of every rule that looked */
   .ledger{margin-top:22px}
@@ -84,6 +107,7 @@
       <div class="why" id="haltwhy"></div>
       <div class="next" id="haltnext"></div>
     </div>
+    <div id="pool"></div>
     <div id="incoming"></div>
   </div>
 
@@ -109,24 +133,44 @@ const PX = 4;                       // integer scale for every sprite
 // it from the belt down, which is what sitting at a desk looks like. Anything
 // less and the clerk appears to be standing on the furniture - which is exactly
 // how the first version read.
-const ROOM = { w: 300, h: 180, deskTop: 126, clerkCut: 46 };
+const ROOM = { w: 320, h: 200, deskTop: 126, clerkCut: 46, floorTop: 172 };
 
 // `back` is painted before the clerk, `front` after, so the desk occludes the
 // lower body instead of the clerk floating on top of it.
+//
+// The wall runs left to right: ledgers, daylight, the chart, the clock. The
+// colour in this room comes from the book spines and the window - not from
+// tinting the furniture, which would just look like a filter.
 const LAYOUT = [
-  { piece: "chart",   x: 14,  y: 18,  layer: "back",  go: "#ablation", title: "the evidence" },
-  { piece: "cabinet", x: 232, y: 26,  layer: "back",  go: "#docket",   title: "the docket" },
-  { piece: "chair",   x: 113, y: 104, layer: "back" },  // backrest crosses the
-                                                      // shoulders, not the head
-  { piece: "desk",    x: 78,  y: 126, layer: "front" },
-  { piece: "lamp",    x: 86,  y: 83,  layer: "front" },                       // 83 + 44 = 127
-  { piece: "papers",  x: 176, y: 107, layer: "front", id: "sprite-papers" },  // 107 + 20 = 127
-  { piece: "mug",     x: 198, y: 111, layer: "front" },                       // 111 + 16 = 127
-  { piece: "plant",   x: 20,  y: 136, layer: "front" },  // decoration: it must not
-                                                         // crowd the verdict
+  // --- wall ---
+  { piece: "shelf",   x: 6,   y: 14,  layer: "back" },
+  { piece: "window",  x: 110, y: 8,   layer: "back" },
+  { piece: "chart",   x: 196, y: 14,  layer: "back", go: "#ablation",
+    title: "the evidence", id: "sprite-chart" },
+  { piece: "clock",   x: 282, y: 16,  layer: "back" },
+
+  // --- room ---
+  { piece: "cabinet", x: 254, y: 84,  layer: "back", go: "#docket",
+    title: "the docket", id: "sprite-cabinet" },
+  { piece: "chair",   x: 105, y: 104, layer: "back" },
+
+  // --- floor, in front of the wall but behind the desk ---
+  { piece: "rug",     x: 54,  y: 164, layer: "back" },
+
+  // --- desk and what sits on it ---
+  { piece: "desk",      x: 62,  y: 126, layer: "front" },
+  { piece: "lamp",      x: 66,  y: 83,  layer: "front" },   // 83 + 44 = 127
+  { piece: "nameplate", x: 96,  y: 115, layer: "front" },   // 115 + 12 = 127
+  { piece: "mug",       x: 146, y: 111, layer: "front" },   // 111 + 16 = 127
+  { piece: "intray",    x: 166, y: 109, layer: "front" },   // 109 + 18 = 127
+  { piece: "papers",    x: 169, y: 101, layer: "front", id: "sprite-papers" },
+
+  // --- floor furniture ---
+  { piece: "bin",     x: 228, y: 150, layer: "front" },
+  { piece: "plant",   x: 16,  y: 148, layer: "front" },
 ];
 
-let OFFICE = null, CLERK = null, clerkTimer = null;
+let OFFICE = null, CLERK = null, clerkTimer = null, clerkQueued = null;
 
 function place(sheet, meta, spec, stage){
   const b = meta.pieces[spec.piece];
@@ -163,6 +207,12 @@ function mountClerk(meta, stage){
 
 function clerkState(state){
   if (!CLERK || !CLERK.meta.states[state]) return;
+  // Any pending follow-up belongs to an older event. On reconnect the whole
+  // history replays in milliseconds, and a 700ms "then file it" timeout from
+  // an earlier event would land after the latest verdict and contradict it -
+  // which is how the clerk ended up reading FILED while the status said HALTED.
+  clearTimeout(clerkQueued);
+  clerkQueued = null;
   const el = document.getElementById("clerk");
   const frames = CLERK.meta.states[state];
   const ms = CLERK.meta.timing[state];
@@ -181,6 +231,95 @@ function clerkState(state){
     }
     show();
   }, ms);
+}
+
+// ---- data drawn into the furniture -------------------------------------
+
+function at(x, y, w, h, id, cls){
+  const el = document.createElement("div");
+  el.className = "overlay " + (cls || "");
+  el.id = id;
+  el.style.cssText = `left:${x * PX}px; top:${y * PX}px;
+                      width:${w * PX}px; height:${h * PX}px;`;
+  return el;
+}
+
+function buildOverlays(office, stage){
+  // cabinet drawer labels - four drawers, one per status
+  const cab = LAYOUT.find(l => l.piece === "cabinet");
+  const names = ["binding", "advisory", "overruled", "all"];
+  names.forEach((name, i) => {
+    const el = at(cab.x + 6, cab.y + 8 + i * 23, 48, 8, "drawer-" + name, "drawer-label");
+    el.innerHTML = `<span>${name}</span><b>-</b>`;
+    stage.appendChild(el);
+  });
+
+  // the wall chart carries the live tally
+  const ch = LAYOUT.find(l => l.piece === "chart");
+  const t = at(ch.x + 7, ch.y + 6, 62, 6, "charttitle");
+  t.textContent = "THIS CHANGE";
+  stage.appendChild(t);
+  const bars = at(ch.x + 8, ch.y + 14, 60, 32, "chartbars");
+  bars.innerHTML = `<div class="clear"></div><div class="note"></div><div class="halt"></div>`;
+  stage.appendChild(bars);
+
+  // the clock shows when the last verdict came in
+  const ck = LAYOUT.find(l => l.piece === "clock");
+  stage.appendChild(at(ck.x + 3, ck.y + 15, 20, 6, "clockface"));
+
+  // the nameplate says what the desk is for
+  const np = LAYOUT.find(l => l.piece === "nameplate");
+  const plate = at(np.x + 2, np.y + 5, 40, 6, "plate");
+  plate.textContent = "PRECEDENT";
+  stage.appendChild(plate);
+
+  // the lamp's pool of light, centred under the shade
+  const lp = LAYOUT.find(l => l.piece === "lamp");
+  const pool = document.getElementById("pool");
+  pool.style.cssText += `left:${(lp.x - 26) * PX}px; top:${(ROOM.deskTop - 26) * PX}px;
+                         width:${78 * PX}px; height:${52 * PX}px;`;
+  lampColour("idle");
+
+  fetch("data.json").then(r => r.json()).then(d => {
+    const c = d.counts || {};
+    setDrawer("binding", c.binding); setDrawer("advisory", c.persuasive);
+    setDrawer("overruled", c.overruled); setDrawer("all", c.cases);
+  }).catch(() => {});
+}
+
+function setDrawer(name, n){
+  const el = document.getElementById("drawer-" + name);
+  if (el) el.querySelector("b").textContent = (n === undefined ? "-" : n);
+}
+
+const POOL = {
+  idle:    "rgba(200,162,74,.10)",
+  reading: "rgba(200,162,74,.16)",
+  halt:    "rgba(180,64,44,.22)",
+  cleared: "rgba(111,207,151,.16)",
+  off:     "rgba(0,0,0,0)",
+};
+function lampColour(kind){
+  const pool = document.getElementById("pool");
+  if (pool) pool.style.background =
+    `radial-gradient(ellipse at 50% 40%, ${POOL[kind] || POOL.idle} 0%, rgba(0,0,0,0) 70%)`;
+}
+
+function setChart(seats){
+  const n = { clear: 0, note: 0, halt: 0 };
+  seats.forEach(s => { if (n[s.verdict] !== undefined) n[s.verdict]++; });
+  const max = Math.max(1, n.clear, n.note, n.halt);
+  const bars = document.getElementById("chartbars");
+  if (!bars) return;
+  ["clear", "note", "halt"].forEach((k, i) => {
+    bars.children[i].style.height = Math.round(n[k] / max * 100) + "%";
+  });
+}
+
+function setClock(ts){
+  const el = document.getElementById("clockface");
+  if (el && ts) el.textContent =
+    new Date(ts * 1000).toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"});
 }
 
 // ---- the stream --------------------------------------------------------
@@ -210,7 +349,8 @@ function connect(){
     if (ev.kind === "recovered"){
       document.getElementById("halt").classList.remove("on");
       clerkState("cleared");
-      setTimeout(() => clerkState("filing"), 700);
+      lampColour("cleared");
+      clerkQueued = setTimeout(() => clerkState("filing"), 700);
       setStatus("live", "cleared");
     }
   };
@@ -219,6 +359,7 @@ function connect(){
 function offline(){
   setStatus("", "no service on " + SERVICE);
   clerkState("dormant");
+  lampColour("off");
   if (!sawAnything){
     document.getElementById("seats").innerHTML = `<div class="empty">
       <div class="big">Nobody is at the desk.</div>
@@ -256,13 +397,17 @@ function sitting(ev){
     nx.style.display = v.next ? "" : "none";
     document.getElementById("halt").classList.add("on");
     clerkState("halt");
+    lampColour("halt");
     setStatus("halt", "halted");
   } else {
     document.getElementById("halt").classList.remove("on");
     clerkState(skipped ? "skip" : "reading");
+    lampColour("reading");
     setStatus("live", skipped ? "a rule could not be evaluated" : "reading");
   }
 
+  setChart(seats);
+  setClock(ev.at);
   renderSeats(ev, seats, halted.length);
 }
 
@@ -298,11 +443,13 @@ Promise.all([
   const stage = document.getElementById("stage");
   stage.style.width = ROOM.w * PX + "px";
   stage.style.height = ROOM.h * PX + "px";
+  document.getElementById("floor").style.height = (ROOM.h - ROOM.floorTop) * PX + "px";
   for (const spec of LAYOUT.filter(s => s.layer === "back"))
     place("sprites/office.png", office, spec, stage);
   mountClerk(clerk, stage);
   for (const spec of LAYOUT.filter(s => s.layer === "front"))
     place("sprites/office.png", office, spec, stage);
+  buildOverlays(office, stage);
   document.getElementById("sprite-papers").style.display = "none";
   clerkState("dormant");
   connect();
