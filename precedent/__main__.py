@@ -94,7 +94,33 @@ def cmd_dump(a) -> int:
 
 
 def cmd_bench(a) -> int:
-    from .bench.run import main as bench_main
+    from .bench.run import main as bench_main, sweep as bench_sweep
+
+    if getattr(a, "compliance", False):
+        seeds = tuple(int(x) for x in a.seeds.split(",") if x.strip())
+        rep = bench_sweep(seeds=seeds, p_recall=a.recall)
+        b = rep["baseline_A"]
+        print()
+        print(f"  {rep['tasks']} tasks, {len(rep['seeds'])} seeds, p_recall={rep['p_recall']}")
+        print(f"  arm A (no memory)   pass {b['pass_rate']:.1%}  traps "
+              f"{b['trap_pass_rate']:.1%}  repeat-fail {b['repeat_failure_rate']:.1%}")
+        print()
+        print(f"  {'p_comply':>9}{'pass':>9}{'traps':>9}{'repeat-fail':>13}"
+              f"{'recovery':>10}{'blocks':>8}")
+        for c in rep["curve"]:
+            rec = "-" if c["recovery_rate"] is None else f"{c['recovery_rate']:.1%}"
+            worse = "  worse than no memory" if (
+                c["repeat_failure_rate"] > b["repeat_failure_rate"]) else ""
+            print(f"  {c['p_comply']:>9.2f}{c['pass_rate']:>9.1%}{c['trap_pass_rate']:>9.1%}"
+                  f"{c['repeat_failure_rate']:>13.1%}{rec:>10}{c['blocks']:>8}{worse}")
+        print()
+        h = rep["harmful_at_or_below"]
+        if h is not None:
+            print(f"  below ~{h:.0%} compliance this makes the agent WORSE, not better.")
+        print("  wrote bench/compliance.json")
+        print()
+        return 0
+
     arms = tuple(x.strip() for x in a.arms.split(",") if x.strip())
     seeds = tuple(int(x) for x in a.seeds.split(",") if x.strip())
     if "B" in arms and not __import__("precedent.provider", fromlist=["available"]).available():
@@ -152,6 +178,8 @@ def main(argv=None) -> int:
     b.add_argument("--arms", default="A,C")
     b.add_argument("--seeds", default="1,2,3,4,5")
     b.add_argument("--recall", type=float, default=0.5)
+    b.add_argument("--compliance", action="store_true",
+                   help="sweep how much depends on the agent obeying the card")
     b.set_defaults(fn=cmd_bench)
 
     v = sub.add_parser("serve", help="local HTTP face for a real agent runtime")

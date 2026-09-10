@@ -104,6 +104,13 @@ def metrics(rows: list[dict]) -> dict:
             "false_positive_rate": round(sum(r["blocked"] > 0 for r in controls) / len(controls), 4)
             if controls else None,
             "blocks": sum(r["blocked"] for r in a),
+            # Of the runs that were stopped, how many went on to pass. A gate
+            # that halts an agent which then fails anyway has cost a run and
+            # bought nothing - stopping is not the same as improving.
+            "recovery_rate": round(
+                sum(r["passed"] for r in a if r["blocked"]) /
+                sum(1 for r in a if r["blocked"]), 4)
+            if any(r["blocked"] for r in a) else None,
         }
     return out
 
@@ -166,6 +173,41 @@ def main(arms=("A", "C"), seeds=(1, 2, 3, 4, 5), p_recall: float = 0.5,
         "regressions": regressions(rows), "rows": rows,
     }
     out = out or ROOT / "bench" / "report.json"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(report, indent=2), encoding="utf-8")
+    return report
+
+
+def sweep(seeds=(1, 2, 3), p_recall: float = 0.5,
+          levels=(0.0, 0.25, 0.5, 0.75, 1.0), out: Path | None = None) -> dict:
+    """How much of the benefit needs the agent to actually do what it is told.
+
+    The headline number was measured at p_comply=1.0, where the harness hands a
+    blocked agent the exact companion it skipped. That is a ceiling. This walks
+    the compliance axis so the floor and the break-even point are visible too.
+    """
+    tasks = all_tasks()
+    a_rows = []
+    for s_ in seeds:
+        a_rows += run_arm("A", s_, p_recall, tasks)
+    baseline = metrics(a_rows)["A"]
+
+    curve_ = []
+    for p in levels:
+        rows = []
+        for s_ in seeds:
+            rows += run_arm("C", s_, p_recall, tasks, p_comply=p)
+        m = metrics(rows)["C"]
+        m["p_comply"] = p
+        curve_.append(m)
+
+    worse = [c["p_comply"] for c in curve_
+             if c["repeat_failure_rate"] > baseline["repeat_failure_rate"]]
+    report = {"generated": time.strftime("%Y-%m-%d %H:%M"),
+              "seeds": list(seeds), "tasks": len(tasks), "p_recall": p_recall,
+              "baseline_A": baseline, "curve": curve_,
+              "harmful_at_or_below": max(worse) if worse else None}
+    out = out or ROOT / "bench" / "compliance.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
     return report
