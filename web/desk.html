@@ -15,8 +15,10 @@
     --px:4;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--mortar) url("sprites/brick.png") repeat;
-       background-size:256px 128px;color:var(--ink);
+  /* Below the room the page is FLOOR, not wall. Brick under the floorboards
+     read as the building turned inside out. */
+  body{margin:0;background:var(--board) url("sprites/floor.png") repeat;
+       background-size:256px 96px;color:var(--ink);
        font:14px/1.65 system-ui,-apple-system,"Segoe UI",sans-serif;
        -webkit-font-smoothing:antialiased}
 
@@ -33,8 +35,7 @@
 
   main{margin:0;padding:0 0 48px}
   /* the paperwork sits on a continuation of the floor, not on bare wall */
-  .undercroft{background:url("sprites/floor.png") repeat;background-size:256px 96px;
-              padding:0 0 40px;image-rendering:pixelated}
+  .undercroft{padding:0 0 56px;image-rendering:pixelated}
 
   /* ---- the room ---- */
   /* The stage spans the viewport so the wall and floor reach both edges; the
@@ -60,7 +61,7 @@
   #chartline{position:absolute;z-index:4;pointer-events:none}
 
   /* the lamp actually lights the desk, and the pool takes the verdict colour */
-  #pool{position:absolute;border-radius:50%;pointer-events:none;z-index:1}
+  #pool{position:absolute;border-radius:50%;pointer-events:none;z-index:3}
 
   /* ---- the stamped card ---- */
   #halt{position:absolute;display:none;z-index:6;
@@ -94,9 +95,11 @@
      a scene with a list underneath it. */
   .ledger{max-width:1140px;margin:0 auto;padding:0 22px;position:relative;top:-4px}
   /* One long list of seventeen rules is a wall of text. It folds. */
-  #ledgerfold summary{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;
-                      list-style:none;cursor:pointer;padding:16px 0 12px;
-                      user-select:none}
+  #ledgerfold summary{display:inline-flex;align-items:center;gap:12px;flex-wrap:wrap;
+                      list-style:none;cursor:pointer;user-select:none;
+                      background:var(--paper);border:4px solid var(--ink);
+                      box-shadow:5px 5px 0 rgba(74,56,46,.22);
+                      padding:10px 18px;margin:18px 0 14px}
   #ledgerfold summary::-webkit-details-marker{display:none}
   #ledgerfold summary:hover h2{color:#8C5938}
   .chev{width:0;height:0;border-left:9px solid var(--ink);
@@ -170,7 +173,7 @@
 
   <div class="undercroft">
   <div class="ledger">
-    <details id="ledgerfold" open>
+    <details id="ledgerfold">
       <summary>
         <span class="chev"></span>
         <h2 id="ledgerhead">Nothing has been judged yet.</h2>
@@ -190,7 +193,7 @@ const SERVICE = new URLSearchParams(location.search).get("service") || "http://1
 // on anything narrower than 1600px.
 let PX = 4;
 function chooseScale(){
-  const fit = Math.floor((window.innerWidth - 24) / 400);
+  const fit = Math.floor((window.innerWidth - 24) / 420);
   PX = Math.max(2, Math.min(4, fit));
 }
 chooseScale();
@@ -200,31 +203,31 @@ chooseScale();
 // clerkCut is how far down the clerk the desk edge falls. At 46 it cut the
 // belt and he read as STANDING behind a low desk; a seated person meets the
 // desk around mid-chest.
-const ROOM = { w: 400, h: 224, deskTop: 140, clerkCut: 34, floorTop: 158 };
+const ROOM = { w: 420, h: 224, deskTop: 140, clerkCut: 42, floorTop: 158 };
 
 const LAYOUT = [
-  // wall, left to right: ledgers, the notice board beneath them, daylight,
-  // the chart. Spread out - an earlier pass crowded six things onto one wall.
-  { piece: "shelf",     x: 20,  y: 18,  layer: "back" },
-  { piece: "window",    x: 148, y: 14,  layer: "back" },
-  { piece: "corkboard", x: 252, y: 12,  layer: "back", id: "sprite-cork" },
+  // The bookcase HUGS the wall: its base sits on the wall/floor junction and
+  // its top lines up with the window and the notice board. Standing it out on
+  // the boards made it look like it had been shoved into the middle of the room.
+  { piece: "bookcase",  x: 18,  y: 12,  layer: "back" },   //  12 + 148 = 160
+  { piece: "window",    x: 160, y: 14,  layer: "back" },
+  { piece: "corkboard", x: 262, y: 12,  layer: "back", id: "sprite-cork" },
 
-  // room
-  { piece: "cabinet",   x: 326, y: 98,  layer: "back", go: "#docket",
+  { piece: "cabinet",   x: 350, y: 98,  layer: "back", go: "#docket",
     title: "the docket", id: "sprite-cabinet" },
-  { piece: "chair",     x: 183, y: 118, layer: "back" },
-  { piece: "rug",       x: 126, y: 186, layer: "back" },
+  { piece: "chair",     x: 201, y: 118, layer: "back" },
+  { piece: "rug",       x: 150, y: 184, layer: "back" },
 
   // desk and what sits on it
-  { piece: "desk",      x: 140, y: 140, layer: "front" },
-  { piece: "lamp",      x: 146, y: 93,  layer: "front" },   //  93 + 48 = 141
-  { piece: "mug",       x: 222, y: 123, layer: "front" },   // 123 + 18 = 141
-  { piece: "intray",    x: 244, y: 121, layer: "front" },   // 121 + 20 = 141
-  { piece: "papers",    x: 247, y: 113, layer: "front", id: "sprite-papers" },
+  { piece: "desk",      x: 150, y: 140, layer: "front" },
+  { piece: "lamp",      x: 156, y: 93,  layer: "front" },   //  93 + 48 = 141
+  { piece: "mug",       x: 232, y: 123, layer: "front" },   // 123 + 18 = 141
+  { piece: "intray",    x: 254, y: 121, layer: "front" },   // 121 + 20 = 141
+  { piece: "papers",    x: 257, y: 113, layer: "front", id: "sprite-papers" },
 
-  // floor
-  { piece: "plant",     x: 30,  y: 176, layer: "front" },
-  { piece: "bin",       x: 296, y: 192, layer: "front" },
+  // floor: one either side of the desk, so nothing overlaps anything
+  { piece: "bin",       x: 122, y: 192, layer: "front" },   // 192 + 28 = 220
+  { piece: "plant",     x: 306, y: 176, layer: "front" },   // 176 + 44 = 220
 ];
 
 let OFFICE = null, CLERK = null, clerkTimer = null, clerkQueued = null;
@@ -253,10 +256,14 @@ function mountClerk(meta, stage){
   const el = document.createElement("div");
   el.className = "sprite";
   el.id = "clerk";
-  el.style.cssText = `left:${124 * PX}px; top:${(ROOM.deskTop - ROOM.clerkCut) * PX}px;
+  // Centred behind the desk (140..288) and in front of the chair at 183.
+  el.style.cssText = `left:${206 * PX}px; top:${(ROOM.deskTop - ROOM.clerkCut) * PX}px;
     width:${meta.frame.w * PX}px; height:${meta.frame.h * PX}px;
     background-image:url("sprites/clerk.png");
-    background-size:auto ${meta.frame.h * PX}px; z-index:2;`;
+    background-size:auto ${meta.frame.h * PX}px;`;
+  // No z-index. The clerk had one and the desk did not, so he painted OVER the
+  // furniture and no amount of moving him down could make him look seated -
+  // the occlusion that sells it was never happening.
   stage.appendChild(el);
 }
 

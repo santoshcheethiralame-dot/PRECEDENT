@@ -140,6 +140,42 @@ def window(cv: Canvas):
         cv.set(x + 3, 2, "g2")
 
 
+@piece("bookcase", 104, 148)
+def bookcase(cv: Canvas):
+    """A floor-standing case: three shelves of ledgers, two drawers, a plinth.
+
+    Wall shelves left the lower wall bare and the room read as top-heavy. This
+    stands on the floorboards and gives the left side something with weight.
+    """
+    cv.box(0, 0, 103, 147, "W1", "W3", "W2")        # carcass
+    cv.box(3, 3, 100, 144, "W2", "W1", "W4")
+
+    tones = ["b1", "b2", "b4", "b3", "b5", "b6", "b2", "b1", "b4", "b3", "b5", "b6"]
+    for row, top in enumerate((8, 44, 80)):
+        cv.rect(7, top, 96, top + 28, "W4")          # the dark inside
+        x, i = 9, row * 4
+        while x < 92:
+            t = tones[i % len(tones)]
+            w = 4 + (i % 3)
+            h = 26 - (i % 5) * 2
+            cv.box(x, top + (27 - h), x + w, top + 27, t, None, None, "K")
+            cv.vline(x + 1, top + (28 - h), top + 26, "P1")
+            if i % 4 == 0:                            # a title band
+                cv.hline(x + 1, x + w - 1, top + (31 - h), "P1")
+            i += 1
+            x += w + 2
+        cv.box(4, top + 28, 99, top + 32, "W1", "W3", "W2")   # the board
+
+    for (dx0, dx1) in ((7, 51), (53, 96)):           # two drawers
+        cv.box(dx0, 114, dx1, 134, "W1", "W3", "W2")
+        cv.grain(dx0 + 2, 116, dx1 - 2, 132, "W2", step=3)
+        mx = (dx0 + dx1) // 2
+        cv.box(mx - 8, 121, mx + 8, 126, "P1", None, "P2")
+
+    cv.box(0, 135, 103, 147, "W2", "W1", "W4")       # plinth
+    cv.shadow(2, 147, 101, 147, "F2")
+
+
 @piece("shelf", 96, 58)
 def shelf(cv: Canvas):
     """Ledgers. Where the colour in this room comes from."""
@@ -288,14 +324,21 @@ def bin_(cv: Canvas):
     cv.shadow(3, 27, 20, 27, "F2")
 
 
-@piece("rug", 140, 30)
+@piece("rug", 148, 32)
 def rug(cv: Canvas):
-    cv.box(0, 0, 139, 29, "b1", None, "r")
-    cv.frame(4, 4, 135, 25, "b4")
-    cv.frame(6, 6, 133, 23, "b1")
-    cv.grain(8, 8, 131, 21, "r", step=3)
-    for x in range(10, 130, 10):
-        cv.vline(x, 9, 20, "b4")
+    """A runner with fringed ends. The first version was a flat slab and read
+    as a painted rectangle on the boards rather than something lying on them."""
+    cv.box(6, 0, 141, 31, "b1", None, "r")
+    cv.frame(10, 4, 137, 27, "b4")
+    cv.frame(12, 6, 135, 25, "b1")
+    cv.grain(14, 8, 133, 23, "r", step=3)
+    for x in range(20, 130, 14):                # medallions down the middle
+        cv.box(x, 12, x + 6, 19, "b4", None, "r", None)
+        cv.set(x + 3, 15, "b1")
+    for y in range(2, 30, 3):                   # fringe at both ends
+        cv.hline(0, 5, y, "P2")
+        cv.hline(142, 147, y, "P2")
+    cv.shadow(8, 31, 139, 31, "F2")
 
 
 @piece("nameplate", 46, 14)
