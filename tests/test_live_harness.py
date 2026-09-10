@@ -79,3 +79,24 @@ def test_armed_refuses_a_ledger_with_nothing_to_enforce(workspace, tmp_path):
     with pytest.raises(RuntimeError, match="no binding precedent"):
         live._armed(repo, empty)
     empty.close()
+
+
+def test_a_trial_where_the_agent_never_ran_is_not_a_pass():
+    """A 504 or a timeout leaves an untouched tree, and an untouched tree
+    passes the oracle. Counting that as a success credits the arm for work
+    that never happened - which is how a provider outage becomes a finding."""
+    assert live.vacuous({"touched": [], "halted": False, "oracle_passed": True})
+    assert not live.vacuous({"touched": [], "halted": True, "oracle_passed": True})
+    assert not live.vacuous({"touched": ["models/patient.py"], "halted": False})
+
+
+def test_dead_trials_are_excluded_from_the_score_and_declared():
+    rows = [
+        {"mode": "off", "touched": [], "halted": False, "oracle_passed": True, "fired": []},
+        {"mode": "off", "touched": ["a.py"], "halted": False, "oracle_passed": False, "fired": []},
+    ]
+    real = [r for r in rows if not live.vacuous(r)]
+    assert len(real) == 1
+    s = live.score(real)
+    assert s["trials"] == 1 and s["agent_failed"] == 1, \
+        "the empty trial must not dilute the failure rate"

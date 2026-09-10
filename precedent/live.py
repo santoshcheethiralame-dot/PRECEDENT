@@ -157,6 +157,16 @@ def trial(repo: Path, seed: Path, led: Ledger, task: str, model: str = MODEL,
     }
 
 
+def vacuous(r: dict) -> bool:
+    """The agent never actually did anything.
+
+    A trial where nothing was written and nothing was halted measures the
+    provider - a 504, a timeout, a refusal - not the treatment. Scoring it as
+    a pass silently credits the arm for work that never happened.
+    """
+    return not r.get("touched") and not r.get("halted")
+
+
 def score(rows: list[dict]) -> dict:
     """A gate is only useful if it fires on the wrong runs and stays quiet on the right ones."""
     tp = sum(1 for r in rows if r["fired"] and not r["oracle_passed"])
@@ -202,11 +212,16 @@ def main(n: int | None = None, model: str = MODEL, out: Path | None = None,
             print(f"        oracle={'pass' if r['oracle_passed'] else 'FAIL'}"
                   f"  halted={r.get('halted')}  touched={r['touched']}", flush=True)
 
-    by_arm = {m: score([r for r in rows if r.get("mode") == m]) for m in arms}
+    real = [r for r in rows if not vacuous(r)]
+    by_arm = {m: score([r for r in real if r.get("mode") == m]) for m in arms}
 
     # A disarmed run produces numbers that look exactly like a result. The only
     # honest thing to do with one is refuse to report it.
     invalid = []
+    dead = len(rows) - len(real)
+    if dead:
+        invalid.append(f"{dead}/{len(rows)} trials had no agent activity at all "
+                       f"(provider error or timeout) and were excluded")
     if "enforce" in arms:
         e = [r for r in rows if r.get("mode") == "enforce"]
         if not any(r.get("halted") or r.get("fired") for r in e):
@@ -218,8 +233,9 @@ def main(n: int | None = None, model: str = MODEL, out: Path | None = None,
 
     report = {"generated": time.strftime("%Y-%m-%d %H:%M"), "model": model,
               "agent": "opencode", "arms": list(arms), "by_arm": by_arm,
+              "trials": len(rows), "scored": len(real), "dead": dead,
               "valid": not invalid, "invalid_because": invalid,
-              "score": score(rows), "rows": rows}
+              "score": score(real), "rows": rows}
     out = out or ROOT / "bench" / "live.json"
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2), encoding="utf-8")
