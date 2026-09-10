@@ -1,44 +1,71 @@
 {
   "frame": {
     "w": 48,
-    "h": 72
+    "h": 74
   },
-  "count": 11,
+  "count": 26,
   "states": {
     "dormant": [
-      0
+      0,
+      1
     ],
     "watching": [
-      1,
-      2
+      2,
+      3,
+      4,
+      5
     ],
     "reading": [
-      3,
-      4
-    ],
-    "halt": [
-      5,
       6,
       7,
-      8
+      8,
+      9
+    ],
+    "halt": [
+      10,
+      11,
+      12,
+      13
     ],
     "cleared": [
-      9,
-      10
+      14,
+      15,
+      16,
+      17
+    ],
+    "filing": [
+      18,
+      19,
+      20
+    ],
+    "skip": [
+      21,
+      22
+    ],
+    "overruled": [
+      23,
+      24,
+      25
     ]
   },
   "timing": {
-    "dormant": 0,
-    "watching": 900,
-    "reading": 320,
+    "dormant": 1400,
+    "watching": 620,
+    "reading": 260,
     "halt": 110,
-    "cleared": 700
+    "cleared": 160,
+    "filing": 200,
+    "skip": 400,
+    "overruled": 320
   },
   "loop": {
-    "dormant": false,
+    "dormant": true,
     "watching": true,
     "reading": true,
     "halt": false,
-    "cleared": true
+    "cleared": false,
+    "filing": false,
+    "skip": true,
+    "overruled": false
   }
 }

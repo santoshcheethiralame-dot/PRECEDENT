@@ -12,9 +12,9 @@
   .row{display:flex;gap:14px;flex-wrap:wrap}
   .cell{background:var(--panel);border:2px solid var(--line);border-radius:4px;
         padding:16px 14px 12px;text-align:center;min-width:224px}
-  .stage{width:192px;height:288px;margin:0 auto 10px;
+  .stage{width:192px;height:296px;margin:0 auto 10px;
          background-image:url("clerk.png");background-repeat:no-repeat;
-         image-rendering:pixelated;background-size:auto 288px}
+         image-rendering:pixelated;background-size:auto 296px}
   .nm{font-family:ui-monospace,Consolas,monospace;font-size:9px;letter-spacing:.18em;
       text-transform:uppercase;color:var(--amber)}
   .when{font-size:11px;color:var(--dim);margin-top:3px}
@@ -37,16 +37,21 @@
 <div class="bar">
   <button onclick="replay('halt')">Replay the stamp</button>
   <button onclick="replay('cleared')">Replay cleared</button>
+  <button onclick="replay('filing')">Replay filing</button>
+  <button onclick="replay('overruled')">Replay overruled</button>
   <span id="meta"></span>
 </div>
 
 <script>
 const WHEN = {
-  dormant:  "nothing running",
-  watching: "connected, tree unchanged",
-  reading:  "a change arrived, rules sitting",
-  halt:     "a binding precedent fired",
-  cleared:  "the change satisfied it",
+  dormant:   "nothing running",
+  watching:  "connected, tree unchanged",
+  reading:   "a change arrived, rules sitting",
+  halt:      "a binding precedent fired",
+  cleared:   "the change satisfied it",
+  filing:    "the citation was recorded",
+  skip:      "a rule could not be evaluated",
+  overruled: "a precedent lost its authority",
 };
 let META = null;
 
