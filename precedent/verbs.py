@@ -19,7 +19,8 @@ from . import empanel, mine, templates
 # ---------------------------------------------------------------- init --------
 
 
-def install_pack(repo: Path) -> list[dict]:
+def install_pack(repo: Path, led: Ledger | None = None,
+                 skip: tuple[str, ...] = ()) -> list[dict]:
     """The failures every agent makes, installed before the first one happens.
 
     Unambiguous patterns bind; the rest inform. A person should not have to leak
@@ -28,12 +29,18 @@ def install_pack(repo: Path) -> list[dict]:
     from . import packs
 
     repo = Path(repo).resolve()
-    led = Ledger(ledger_path(repo))
+    # A caller that already has a ledger open passes it in - the demo keeps
+    # one ledger for a workspace it rebuilds on every reset, and opening the
+    # repo's own would install the pack somewhere nothing reads.
+    owned = led is None
+    led = led or Ledger(ledger_path(repo))
     existing = {(h["template"], json.dumps(h["params"], sort_keys=True))
                 for h in led.holdings(repo=str(repo))}
 
     out = []
     for r in packs.applicable(repo) + packs.manifest_pairs(repo):
+        if r["template"] in skip:
+            continue
         if "params" in r:
             params = r["params"]
         elif "regex" in r:
@@ -51,7 +58,8 @@ def install_pack(repo: Path) -> list[dict]:
                             status="binding" if r["binding"] else "persuasive",
                             empanel={"pack": r["key"]})
         out.append({**r, "id": hid, "params": params})
-    led.close()
+    if owned:
+        led.close()
     return out
 
 
@@ -247,7 +255,18 @@ def status(repo: Path, days: int = 7) -> dict:
 
 # ----------------------------------------------------------------- hook -------
 
-HOOK = "#!/bin/sh\n# installed by `precedent hook`\nexec python -m precedent gate .\n"
+# `python -m precedent` only resolves from a checkout of this repository. The
+# hook runs in the user's repository, so it calls the installed console script
+# and keeps the module form as a fallback for a checkout that was never
+# installed.
+HOOK = (
+    "#!/bin/sh\n"
+    "# installed by `precedent hook`\n"
+    "if command -v precedent >/dev/null 2>&1; then\n"
+    "  exec precedent gate .\n"
+    "fi\n"
+    "exec python -m precedent gate .\n"
+)
 
 
 def hook(repo: Path) -> Path | None:
@@ -261,3 +280,51 @@ def hook(repo: Path) -> Path | None:
     except OSError:
         pass
     return target
+
+
+# -------------------------------------------------------------- opencode ------
+
+ROOT = Path(__file__).resolve().parents[1]
+PLUGIN = ROOT / "plugin" / "precedent.ts"
+
+
+def opencode(repo: Path, mode: str = "enforce") -> dict:
+    """Install the plugin into a repository so opencode actually stops a write.
+
+    `watch` sees everything and stops nothing - it reads git after the fact.
+    This is the other half: the plugin throws in tool.execute.before, which
+    aborts the tool call before the bytes land, and the halt card goes back to
+    the model as the error. Every decision comes from `precedent serve`; the
+    plugin is plumbing with a timeout and it fails open.
+    """
+    import json as _json
+    import shutil as _shutil
+
+    repo = Path(repo).resolve()
+    if not PLUGIN.is_file():
+        raise FileNotFoundError(f"the plugin is missing from this checkout: {PLUGIN}")
+
+    plugins = repo / ".opencode" / "plugins"
+    plugins.mkdir(parents=True, exist_ok=True)
+    dest = plugins / "precedent.ts"
+    _shutil.copy2(PLUGIN, dest)
+
+    # Merge rather than overwrite: a repository that already configures its own
+    # agent should not lose that configuration to a plugin install.
+    cfg_path = repo / "opencode.json"
+    cfg: dict = {}
+    if cfg_path.is_file():
+        try:
+            cfg = _json.loads(cfg_path.read_text(encoding="utf-8"))
+        except ValueError:
+            cfg = {}
+    cfg.setdefault("$schema", "https://opencode.ai/config.json")
+    perm = cfg.setdefault("permission", {})
+    # `edit: allow` on its own permits editing any absolute path, and with bash
+    # the agent can walk out of the repository entirely. It has done exactly
+    # that here once, writing into the seed corpus while the recorder watched
+    # an untouched workspace.
+    perm.setdefault("external_directory", "deny")
+    cfg_path.write_text(_json.dumps(cfg, indent=2) + chr(10), encoding="utf-8")
+
+    return {"plugin": dest, "config": cfg_path, "mode": mode}

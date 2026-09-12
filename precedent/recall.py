@@ -10,6 +10,7 @@ import re
 from collections import Counter
 
 from .db import Ledger
+from . import templates
 
 _WORD = re.compile(r"[a-z0-9_]+")
 
@@ -59,11 +60,45 @@ def everything(led: Ledger, repo: str, task: str, cap: int = 40) -> list[dict]:
     return rows[:cap]
 
 
-def briefing(led: Ledger, repo: str, task: str, k: int = 5) -> str:
-    """Persuasive authority, as text, for arm B. Binding holdings do not need words."""
-    rows = similar(led, repo, task, k=k, statuses=("persuasive",))
-    if not rows:
+def briefing(led: Ledger, repo: str, task: str, k: int = 5, cap: int = 12) -> str:
+    """What to tell the agent BEFORE it acts.
+
+    Two bugs lived here and they had the same shape: an empty prompt.
+
+    It used to ask for persuasive holdings only, reasoning that a binding rule
+    needs no words because it will stop the agent anyway. That is backwards.
+    Being stopped costs a turn and the model has to work out why; being told
+    costs a sentence and it complies the first time.
+
+    Then, having asked for binding rules too, it still filtered them by
+    similarity - and a bag of words scores "add a phone_verified field to the
+    patient model" against "models/*.py" at exactly zero. So a repository
+    taught its rules directly, which is every repository on day one, got
+    nothing.
+
+    The gate does not consult a similarity score before firing. It evaluates
+    every binding rule whatever the task was called. So every binding rule is
+    named here, and only advisory ones - which stop nothing - are ranked by
+    relevance.
+    """
+    binding = [h for h in led.holdings(repo=repo) if h["status"] == "binding"]
+    advisory = [r for r in similar(led, repo, task, k=k, statuses=("persuasive",))]
+    if not binding and not advisory:
         return ""
-    lines = ["Past failures on tasks like this one:"]
-    lines += [f"- {r['says']}" for r in rows]
-    return "\n".join(lines)
+
+    lines: list[str] = []
+    if binding:
+        lines.append("This repository will STOP a change that breaks these. "
+                     "They are not suggestions:")
+        for r in binding[:cap]:
+            lines.append(f"- {r['says']}")
+            if r["template"] in templates.TEMPLATES:
+                lines.append(f"  ({templates.render(r['template'], r['params'])})")
+        if len(binding) > cap:
+            lines.append(f"- ...and {len(binding) - cap} more.")
+    if advisory:
+        if lines:
+            lines.append("")
+        lines.append("Past failures on tasks like this one:")
+        lines += [f"- {r['says']}" for r in advisory]
+    return chr(10).join(lines)

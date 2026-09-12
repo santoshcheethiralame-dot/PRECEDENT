@@ -32,6 +32,66 @@ RULES: list[dict] = [
          regex=r"\b(ghp_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})",
          glob="**", says="Never commit an API token."),
 
+    # ---- the agent must not be able to switch the gate off -------------
+    # Every other rule here assumes the gate is running. This is the one that
+    # keeps it running, and it is the only rule in the pack that exists
+    # BECAUSE precedent blocks rather than advises - an advisory tool has
+    # nothing worth disarming.
+    #
+    # It is not hypothetical. This repository has been disarmed twice by the
+    # thing it was restraining: an agent edited the seed corpus from outside
+    # its worktree, and a plugin file went missing so every benchmark arm
+    # silently became a bare agent still printing numbers that looked like
+    # results.
+    dict(key="self_disarm", template="forbidden_edit", binding=True,
+         params={"glob": "{.precedent/**,.git/hooks/**,**/.opencode/plugins/**,opencode.json}"},
+         says="This turns the gate off. Change it yourself, not through the agent."),
+    dict(key="disarm_ci", template="forbidden_edit", binding=True,
+         params={"glob": "{.github/workflows/**,.pre-commit-config.yaml}"},
+         says="This edits the checks that guard the repository."),
+
+    # ---- protections the agent removed ---------------------------------
+    # `simplifying` an authorisation check away is a classic, and the template
+    # for it already existed - this is a rule, not new machinery.
+    dict(key="removed_authz", template="must_not_remove", binding=False, langs={"py"},
+         regex=r"@(login_required|permission_required|requires_auth|admin_required)",
+         glob="**/*.py",
+         says="You removed an authorisation check. Say why, or put it back."),
+    dict(key="removed_csrf", template="must_not_remove", binding=False,
+         regex=r"(csrf_token|CSRFProtect|csrf_exempt)",
+         glob="**/*.{py,js,ts,html}",
+         says="You removed a CSRF protection."),
+
+    # ---- transport and crypto downgrades --------------------------------
+    dict(key="tls_off", template="must_not_appear", binding=True, langs={"py"},
+         regex=r"verify\s*=\s*False|_create_unverified_context",
+         glob="**/*.py",
+         says="This turns off certificate verification."),
+    dict(key="weak_hash_password", template="must_not_appear", binding=False, langs={"py"},
+         regex=r"(md5|sha1)\s*\(\s*[^)]*pass",
+         glob="**/*.py",
+         says="A password is being hashed with a broken algorithm."),
+    dict(key="debug_on", template="must_not_appear", binding=False,
+         regex=r"^\s*DEBUG\s*=\s*True",
+         glob="**/{settings,config,conf}*.py",
+         says="Debug mode is on in a config file."),
+
+    # ---- dangerous sinks -------------------------------------------------
+    dict(key="shell_injection", template="must_not_appear", binding=False, langs={"py"},
+         regex=r"(os\.system\(|subprocess\.[a-z_]+\([^)]*shell\s*=\s*True)",
+         glob="**/*.py",
+         says="A shell command is being built at runtime."),
+    # Borrowed from forge, which had to answer this to let an agent write its
+    # own tools. Reads the syntax tree, so `eval` in a comment, in a string, or
+    # in a variable named `evaluate` is not a finding and a real call is.
+    dict(key="forge_unsafe_call", template="forge_gate", binding=False, langs={"py"},
+         params={"glob": "**/*.py"},
+         says="This code reaches for something that can execute arbitrary input."),
+    dict(key="unsafe_deser", template="must_not_appear", binding=False, langs={"py"},
+         regex=r"(pickle\.loads?\(|yaml\.load\((?![^)]*Safe))",
+         glob="**/*.py",
+         says="Untrusted data is being deserialised unsafely."),
+
     # ---- debugging left behind ----------------------------------------
     dict(key="pdb", template="must_not_appear", binding=True, langs={"py"},
          regex=r"\b(pdb|ipdb)\.set_trace\(|\bbreakpoint\(\)", glob="**/*.py",
@@ -134,6 +194,30 @@ SLEEPER = [
     dict(key="sleeper_redundancy", gate="redundancy",
          says="This repository already has a function that does this."),
 ]
+
+
+def forge_home() -> Path | None:
+    """Where forge lives, if it is anywhere.
+
+    forge is the sibling project that lets an agent WRITE its own tools. To do
+    that safely it had to answer a question we also need answered - is this
+    Python code doing something it should not be allowed to do - and it answers
+    it by walking the syntax tree rather than by matching text. We had two
+    regexes for the same job and they were the weaker tool.
+    """
+    import os
+
+    env = os.environ.get("PRECEDENT_FORGE")
+    if env and (Path(env) / "forge" / "safety.py").is_file():
+        return Path(env)
+    sibling = Path(__file__).resolve().parents[2] / "forge"
+    if (sibling / "forge" / "safety.py").is_file():
+        return sibling
+    return None
+
+
+def forge_available() -> bool:
+    return forge_home() is not None
 
 
 def sleeper_home() -> Path | None:

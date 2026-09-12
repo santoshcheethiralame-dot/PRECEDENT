@@ -26,7 +26,7 @@ DOMAIN = {
     "co_change": "structure", "must_run": "structure", "required_command": "structure",
     "forbidden_edit": "structure", "regression_test": "tests",
     "must_not_appear": "hygiene", "must_not_remove": "tests", "must_appear": "hygiene",
-    "blast_radius": "context", "no_quadratic": "cost", "sleeper_gate": "borrowed",
+    "blast_radius": "context", "no_quadratic": "cost", "sleeper_gate": "borrowed", "forge_gate": "borrowed",
     "prose": "advice",
 }
 

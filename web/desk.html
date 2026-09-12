@@ -32,6 +32,7 @@
                 border:2px solid var(--ink)}
   .status.live .bulb{background:var(--phos)}
   .status.halt .bulb{background:var(--coral)}
+  .status.replay .bulb{background:var(--amber)}
 
   main{margin:0;padding:0 0 48px}
   /* the paperwork sits on a continuation of the floor, not on bare wall */
@@ -67,7 +68,8 @@
   #halt{position:absolute;display:none;z-index:6;
         background:var(--paper);border:4px solid var(--ink);
         box-shadow:6px 6px 0 rgba(74,56,46,.22);padding:14px 16px}
-  #halt.on{display:block;animation:pinup .18s steps(2) both}
+  #halt.on{display:block;animation:pinup .18s steps(2) both;cursor:pointer}
+  #halt.on:hover .no{color:var(--ink)}
   @keyframes pinup{from{transform:translateY(-8px) rotate(-1.5deg)}to{transform:none}}
   /* four pushpins, so it reads as pinned rather than floating */
   #halt::before,#halt::after{content:"";position:absolute;width:12px;height:12px;
@@ -82,12 +84,26 @@
               background:var(--amber);border:2px solid var(--ink);
               display:inline-block;padding:4px 8px;margin-top:10px}
 
-  #incoming{position:absolute;z-index:6;font-family:ui-monospace,Consolas,monospace;
-            font-size:11px;color:var(--ink);display:none;
-            background:var(--paper);border:3px solid var(--ink);padding:6px 9px;
-            box-shadow:4px 4px 0 rgba(74,56,46,.18)}
-  #incoming.on{display:block}
-  #incoming b{font-weight:400;display:block}
+
+  /* The board is never blank. With no halt showing it carries the last thing
+     that actually happened, taken from the ledger - the halt card sits over
+     it when a rule fires. */
+  #lastcard{position:absolute;z-index:5;display:none;
+        background:var(--paper);border:4px solid var(--ink);
+        box-shadow:6px 6px 0 rgba(74,56,46,.22);padding:13px 15px;
+        transform:rotate(-.7deg)}
+  #lastcard.on{display:block}
+  #lastcard::before,#lastcard::after{content:"";position:absolute;width:12px;
+    height:12px;border-radius:50%;background:var(--ink-soft);
+    border:3px solid var(--ink);top:-8px}
+  #lastcard::before{left:16px} #lastcard::after{right:16px}
+  #lastcard .no{font-family:ui-monospace,Consolas,monospace;font-size:10px;
+                letter-spacing:.18em;text-transform:uppercase;color:var(--ink-soft)}
+  #lastcard .says{font:400 17px/1.35 Georgia,serif;margin:7px 0 8px}
+  #lastcard .out{font-family:ui-monospace,Consolas,monospace;font-size:11px;
+                 color:var(--ink-soft)}
+  #lastcard .out b{font-weight:400;color:var(--ink)}
+  #lastcard a{color:inherit;text-decoration:none}
 
   /* ---- the ledger: the office's own paperwork ----
      Ruled stock with a red margin and punched holes, butted straight up
@@ -136,6 +152,8 @@
   .seat{display:flex;align-items:flex-start;gap:11px;padding:11px 14px;
         border-bottom:2px solid var(--paper-2);font-size:13.5px}
   .seat:last-child{border-bottom:none}
+  .seat{cursor:pointer}
+  .seat:hover{background:#FFFBF0}
   .seat i{width:9px;height:9px;border-radius:50%;flex:none;margin-top:5px;
           background:#CFC3AF;border:2px solid var(--ink)}
   .seat .who{flex:1;min-width:0}
@@ -169,13 +187,17 @@
     <div id="floor"></div>
     <div class="room" id="room">
     <div id="pool"></div>
+    <div id="lastcard">
+      <div class="no" id="lastno"></div>
+      <div class="says" id="lastsays"></div>
+      <div class="out" id="lastout"></div>
+    </div>
     <div id="halt">
       <div class="no" id="haltno"></div>
       <div class="says" id="haltsays"></div>
       <div class="why" id="haltwhy"></div>
       <div class="next" id="haltnext"></div>
     </div>
-    <div id="incoming"></div>
     </div>
   </div>
 
@@ -209,33 +231,42 @@ chooseScale();
 // Logical room, multiplied by PX. Spacing is deliberate: an earlier pass put
 // six things on one wall and it read as clutter.
 // clerkCut is how far down the clerk the desk edge falls. At 46 it cut the
-// belt and he read as STANDING behind a low desk; a seated person meets the
-// desk around mid-chest.
+// belt and he read as STANDING behind a low desk. At 42 it cut him at the
+// collar and he read as a television sitting on the desk - the head is 34 of
+// his 74 rows, so anything under ~46 leaves no body at all. At 54 he floated:
+// the chair back landed under him and turned into a plinth. 49 puts the desk
+// edge across his chest, which is where a seated person meets one.
 // Narrower than it looks: a 420-wide room forced the scale down to 3 and the
 // centrepiece shrank with it. At 340 the same screen fits scale 4.
-const ROOM = { w: 350, h: 226, deskTop: 140, clerkCut: 42, floorTop: 158 };
+const ROOM = { w: 350, h: 226, deskTop: 140, clerkCut: 49, floorTop: 158 };
 
 const LAYOUT = [
   // Three big pieces have to share 350: bookcase 104, desk 168, cabinet 60.
   // Every x below is chosen so none of them touch - the desk and the lamp were
   // overlapping the bookcase when the room was 10px narrower.
   { piece: "bookcase",  x: 2,   y: 18,  layer: "back" },   //   2..106
-  { piece: "window",    x: 128, y: 14,  layer: "back" },
-  { piece: "corkboard", x: 228, y: 12,  layer: "back", id: "sprite-cork" },
+  // The race runs on its own server, because it boots two applications. If
+  // that server is not up the link is dead, so the page checks first and only
+  // makes the window a door when there is something behind it.
+  { piece: "window",    x: 128, y: 14,  layer: "back", id: "sprite-window",
+    go: "http://127.0.0.1:8900/", title: "watch the race" },
+  { piece: "corkboard", x: 228, y: 12,  layer: "back", id: "sprite-cork",
+    go: "chart.html", title: "the evidence" },
 
-  { piece: "cabinet",   x: 288, y: 100, layer: "back", go: "#docket",
+  { piece: "cabinet",   x: 288, y: 100, layer: "back", go: "cabinet.html",
     title: "the docket", id: "sprite-cabinet" },
-  { piece: "chair",     x: 167, y: 116, layer: "back" },
-  { piece: "rug",       x: 110, y: 184, layer: "back" },   // centred under the desk
 
   // the centrepiece
   { piece: "desk",      x: 114, y: 140, layer: "front" },   // 114..282
-  { piece: "lamp",      x: 120, y: 92,  layer: "front" },   //  92 + 48 = 140
+  { piece: "lamp",      x: 116, y: 92,  layer: "front" },   //  92 + 48 = 140
   // Clear of the clerk at 174..222: his arms show at the top of the desk line
   // and the mug was sitting on his right hand.
-  { piece: "mug",       x: 152, y: 123, layer: "front" },   // 123 + 17 = 140
-  { piece: "intray",    x: 234, y: 119, layer: "front" },   // 119 + 21 = 140
-  { piece: "papers",    x: 238, y: 112, layer: "front", id: "sprite-papers" },
+  { piece: "mug",       x: 150, y: 123, layer: "front" },   // 123 + 17 = 140
+  { piece: "intray",    x: 234, y: 119, layer: "front",     // 119 + 21 = 140
+    go: "tape.html", title: "the tape" },
+  // In the tray's upper tier, not across its front. 118 + 11 = 129, which
+  // lands on the solid lower tier at 127.
+  { piece: "papers",    x: 240, y: 118, layer: "front", id: "sprite-papers" },
 
   // floor, clear of everything above
   { piece: "bigplant",  x: 38,  y: 164, layer: "front" },   // stands on the floor
@@ -244,6 +275,8 @@ const LAYOUT = [
 ];
 
 let OFFICE = null, CLERK = null, clerkTimer = null, clerkQueued = null;
+let REPLAY = null, replayOn = false, replayAt = [], MODE = "off";
+let LASTSTATE = "dormant", LASTVERDICT = null;
 
 // ---- building the room --------------------------------------------------
 
@@ -251,6 +284,10 @@ function place(meta, spec, stage){
   const b = meta.pieces[spec.piece];
   const el = document.createElement("div");
   el.className = "sprite" + (spec.go ? " clickable" : "");
+  if (spec.go){
+    el.onmouseenter = () => clerkState("watching", false);
+    el.onmouseleave = () => clerkState(LASTSTATE, false);
+  }
   if (spec.id) el.id = spec.id;
   el.style.cssText = `left:${spec.x * PX}px; top:${spec.y * PX}px;
     width:${b.w * PX}px; height:${b.h * PX}px;
@@ -259,7 +296,7 @@ function place(meta, spec, stage){
     background-position:-${b.x * PX}px -${b.y * PX}px;`;
   if (spec.go){
     el.title = spec.title || "";
-    el.onclick = () => location.href = "board.html" + spec.go;
+    el.onclick = () => location.href = spec.go;
   }
   stage.appendChild(el);
   return el;
@@ -280,8 +317,9 @@ function mountClerk(meta, stage){
   stage.appendChild(el);
 }
 
-function clerkState(state){
+function clerkState(state, remember = true){
   if (!CLERK || !CLERK.meta.states[state]) return;
+  if (remember) LASTSTATE = state;
   // A queued follow-up belongs to an older event. On reconnect the history
   // replays in milliseconds and a stale "then file it" would land after the
   // latest verdict and contradict it.
@@ -342,26 +380,47 @@ function connect(){
   if (stream) return;
   try { stream = new EventSource(SERVICE + "/v1/events"); } catch { return offline(); }
   stream.onopen = () => { setStatus("live", "watching"); clerkState("watching"); lampColour("idle"); };
-  stream.onerror = () => { stream.close(); stream = null; offline(); setTimeout(connect, 4000); };
+  stream.onerror = () => {
+    stream.close(); stream = null; offline();
+    setTimeout(connect, replayOn ? 30000 : 4000);
+  };
   stream.onmessage = (e) => {
     let ev; try { ev = JSON.parse(e.data); } catch { return; }
-    if (ev.kind === "watch.start"){
-      setStatus("live", "watching " + (ev.repo || "").split(/[\\/]/).pop());
-      clerkState("watching");
-    }
-    if (ev.kind === "sitting") sitting(ev);
-    if (ev.kind === "recovered"){
-      document.getElementById("halt").classList.remove("on");
-      clerkState("cleared"); lampColour("cleared");
-      clerkQueued = setTimeout(() => clerkState("filing"), 700);
-      setStatus("live", "cleared");
-    }
+    stopReplay();                 // a real session outranks the recording
+    MODE = "live";
+    handle(ev);
   };
 }
 
+// Every event takes the same path whether it arrived down the wire or out of
+// the recording, so the replay cannot drift from the live view.
+function handle(ev){
+  if (ev.kind === "watch.start"){
+    say("live", "watching " + (ev.repo || "").split(/[\\/]/).pop());
+    clerkState("watching");
+  }
+  if (ev.kind === "sitting") sitting(ev);
+  if (ev.kind === "recovered"){
+    document.getElementById("halt").classList.remove("on");
+    showLast();
+    clerkState("cleared"); lampColour("cleared");
+    clerkQueued = setTimeout(() => clerkState("filing"), 700);
+    say("live", "cleared");
+  }
+}
+
+// The pill never claims to be live when it is playing a recording.
+function say(kind, text){
+  if (MODE === "replay") return setStatus("replay", "replay · " + text);
+  setStatus(kind, text);
+}
+
 function offline(){
+  if (REPLAY && (REPLAY.events || []).length){ MODE = "replay"; return startReplay(); }
+  MODE = "off";
   setStatus("", "no service on " + SERVICE);
   clerkState("dormant"); lampColour("off");
+  showLast();
   if (!sawAnything){
     document.getElementById("seats").innerHTML = `<div class="empty">
       <div class="big">Nobody is at the desk.</div>
@@ -370,38 +429,66 @@ function offline(){
   }
 }
 
+// ---- the recording ------------------------------------------------------
+// A real session, captured from the same watcher this page listens to, so the
+// desk demonstrates the tool instead of reporting that nobody started one. It
+// is labelled a replay wherever it shows, and a live service stops it.
+
+function startReplay(){
+  if (replayOn) return;
+  replayOn = true;
+  const evs = REPLAY.events || [];
+  const loop = () => {
+    replayAt.forEach(clearTimeout);
+    replayAt = evs.map(ev => setTimeout(() => handle(ev), ev.t));
+    replayAt.push(setTimeout(loop, evs[evs.length - 1].t + 4600));
+  };
+  loop();
+}
+
+function stopReplay(){
+  replayOn = false;
+  replayAt.forEach(clearTimeout);
+  replayAt = [];
+}
+
+// The board carries the last verdict in the ledger whenever no card is up.
+function showLast(){
+  const el = document.getElementById("lastcard");
+  if (el && LASTVERDICT) el.classList.add("on");
+}
+
 function sitting(ev){
   sawAnything = true;
   const seats = ev.seats || [];
   const halted = seats.filter(s => s.verdict === "halt");
   const skipped = seats.some(s => s.verdict === "skip");
 
-  const inc = document.getElementById("incoming");
-  if (ev.touched && ev.touched.length){
-    inc.classList.add("on");
-    inc.innerHTML = ev.touched.slice(0, 3).map(f => `<b>${f}</b>`).join("")
-      + (ev.touched.length > 3 ? `+${ev.touched.length - 3} more` : "");
-    document.getElementById("sprite-papers").style.display = "";
-  } else {
-    inc.classList.remove("on");
-    document.getElementById("sprite-papers").style.display = "none";
-  }
+  // The paper stack appearing IS the signal that a change landed; the
+  // filenames belong in the ledger, not floating over the bricks.
+  document.getElementById("sprite-papers").style.display =
+    (ev.touched && ev.touched.length) ? "" : "none";
 
   if (halted.length){
     const v = halted[0];
-    document.getElementById("haltno").textContent = `Precedent No ${v.holding_id} · ${v.domain}`;
+    document.getElementById("haltno").textContent =
+      `Precedent No ${v.holding_id} · ${v.domain} · open the file`;
+    document.getElementById("halt").onclick =
+      () => location.href = `cabinet.html#${v.status || "binding"}/${v.holding_id}`;
     document.getElementById("haltsays").textContent = v.says;
     document.getElementById("haltwhy").textContent = v.reason || "";
     const nx = document.getElementById("haltnext");
     nx.textContent = v.next ? "do this next: " + v.next : "";
     nx.style.display = v.next ? "" : "none";
     document.getElementById("halt").classList.add("on");
+    document.getElementById("lastcard").classList.remove("on");
     clerkState("halt"); lampColour("halt");
-    setStatus("halt", "halted");
+    say("halt", "halted");
   } else {
     document.getElementById("halt").classList.remove("on");
+    showLast();
     clerkState(skipped ? "skip" : "reading"); lampColour("reading");
-    setStatus("live", skipped ? "a rule could not be evaluated" : "reading");
+    say("live", skipped ? "a rule could not be evaluated" : "reading");
   }
 
   renderSeats(ev, seats, halted.length);
@@ -422,7 +509,8 @@ function renderSeats(ev, seats, haltCount){
   const order = { halt: 0, note: 1, skip: 2, clear: 3 };
   seats.sort((a, b) => order[a.verdict] - order[b.verdict] || a.holding_id - b.holding_id);
   document.getElementById("seats").innerHTML = seats.map(s => `
-    <div class="seat v-${s.verdict}">
+    <div class="seat v-${s.verdict}" title="open precedent no ${s.holding_id}"
+         onclick="location.href='cabinet.html#${s.status || "binding"}/${s.holding_id}'">
       <i></i>
       <div class="who">${s.says}
         ${s.reason ? `<div class="why">${s.reason}</div>` : ""}</div>
@@ -430,13 +518,42 @@ function renderSeats(ev, seats, haltCount){
     </div>`).join("");
 }
 
+const OUTCOMES = {
+  complied_pass:   "complied, and the work passed",
+  complied_fail:   "complied, and the work failed anyway",
+  overridden_pass: "overridden, and the work passed",
+  overridden_fail: "overridden, and the work failed",
+};
+
+// The most recent citation in the ledger. Real, dated, and it means the board
+// is never an empty rectangle on a page that has nothing else to show.
+function lastVerdict(d){
+  let best = null;
+  (d.holdings || []).forEach(h => (h.citations || []).forEach(c => {
+    if (!best || c.at > best.c.at) best = { h, c };
+  }));
+  if (!best) return;
+  LASTVERDICT = best;
+  const when = new Date(best.c.at * 1000).toISOString().slice(0, 10);
+  document.getElementById("lastno").textContent =
+    `last verdict · precedent no ${best.h.id}`;
+  document.getElementById("lastsays").textContent = best.h.says;
+  document.getElementById("lastout").innerHTML =
+    `<b>${OUTCOMES[best.c.outcome] || best.c.outcome}</b> · ${when}`;
+  document.getElementById("lastcard").onclick =
+    () => location.href = `cabinet.html#${best.h.status}/${best.h.id}`;
+  document.getElementById("lastcard").style.cursor = "pointer";
+  if (!document.getElementById("halt").classList.contains("on")) showLast();
+}
+
 // ---- boot ---------------------------------------------------------------
 
 Promise.all([
   fetch("sprites/office.json").then(r => r.json()),
   fetch("sprites/clerk.json").then(r => r.json()),
-]).then(([office, clerk]) => {
-  OFFICE = office; CLERK = { meta: clerk };
+  fetch("replay.json").then(r => r.json()).catch(() => null),
+]).then(([office, clerk, replay]) => {
+  OFFICE = office; CLERK = { meta: clerk }; REPLAY = replay;
   const stage = document.getElementById("stage");
   stage.style.height = ROOM.h * PX + "px";
 
@@ -467,10 +584,6 @@ Promise.all([
     left: (cork.x + 8) * PX + "px", top: (cork.y + 9) * PX + "px",
     width: 100 * PX + "px",
   });
-  Object.assign(document.getElementById("incoming").style, {
-    left: (desk.x + 152) * PX + "px", top: 104 * PX + "px",
-  });
-
   // lamp pool
   const lp = LAYOUT.find(l => l.piece === "lamp");
   Object.assign(document.getElementById("pool").style, {
@@ -479,16 +592,36 @@ Promise.all([
   });
   lampColour("off");
 
+  // the card the board carries when nothing is halting
+  Object.assign(document.getElementById("lastcard").style, {
+    left: (cork.x + 8) * PX + "px", top: (cork.y + 9) * PX + "px",
+    width: 100 * PX + "px",
+  });
+
   // drawer counts as pips, so no words go on the furniture
   fetch("data.json").then(r => r.json()).then(d => {
     const c = d.counts || {}, cab = LAYOUT.find(l => l.piece === "cabinet");
     [c.binding, c.persuasive, c.overruled, c.cases].forEach((n, i) =>
       pipsAt(room, cab.x + 9, cab.y + 12 + i * 23, n || 0, "pips-" + i));
+    lastVerdict(d);
   }).catch(() => {});
+
+  // A door to a server that is not running is worse than no door.
+  fetch("http://127.0.0.1:8900/state", { mode: "no-cors" })
+    .catch(() => {
+      const w = document.getElementById("sprite-window");
+      if (!w) return;
+      w.classList.remove("clickable");
+      w.onclick = null;
+      w.title = "the race needs `precedent demo` running";
+    });
 
   document.getElementById("sprite-papers").style.display = "none";
   clerkState("dormant");
   connect();
+  // EventSource takes a moment to fail; without this the page sits dormant
+  // for four seconds before the recording starts.
+  setTimeout(() => { if (MODE === "off") offline(); }, 900);
 
   let last = PX;
   addEventListener("resize", () => {

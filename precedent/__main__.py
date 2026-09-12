@@ -196,6 +196,18 @@ def main(argv=None) -> int:
     v.add_argument("--port", type=int, default=4000)
     v.set_defaults(fn=lambda a: __import__("precedent.serve", fromlist=["main"]).main(a.port))
 
+    rp = sub.add_parser("replay", help="record one real session for the desk to play with no service")
+    rp.add_argument("--repo", default=None)
+    rp.set_defaults(fn=lambda a: __import__("precedent.replay", fromlist=["main"]).main(a.repo))
+
+    lv = sub.add_parser("live", help="the three arms driven by real opencode, not a script")
+    lv.add_argument("-n", type=int, default=None, help="how many trials per arm")
+    lv.add_argument("--model", default=None)
+    lv.add_argument("--arms", default="off,advise,enforce")
+    lv.set_defaults(fn=lambda a: __import__("precedent.live", fromlist=["main"]).main(
+        n=a.n, arms=tuple(x.strip() for x in a.arms.split(",") if x.strip()),
+        **({"model": a.model} if a.model else {})))
+
     w = sub.add_parser("board", help="freeze the ledger and benchmark, then serve the board")
     w.add_argument("--port", type=int, default=8850)
     w.add_argument("--ledger", default=None)

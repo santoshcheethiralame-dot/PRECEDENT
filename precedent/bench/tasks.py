@@ -3,6 +3,7 @@ oracle. Six of them have no trap at all - those measure false positives."""
 from __future__ import annotations
 
 import json
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -17,6 +18,43 @@ class Task:
     primary: list[dict]
     companions: list[dict] = field(default_factory=list)   # {"actions": [...], "produces": [...]}
     shortcut: list[dict] | None = None           # what a lazy agent does instead
+
+    def attempted(self, repo_dir: Path) -> bool:
+        """Was the task actually done?
+
+        The oracle only asks whether the repository is CONSISTENT, and a
+        repository nobody touched is perfectly consistent. So an agent that
+        reads six files and stops scores a pass on every task, which is what a
+        live model did on all ninety runs of the first three-arm attempt: 100%
+        in every arm, no blocks, no failures, and no work.
+
+        A task is attempted when the file its primary edit names carries the
+        identifiers that edit would have introduced. That is derived from the
+        task rather than written out per family, so a new task cannot forget
+        to bring its own completion check.
+        """
+        for act in self.primary:
+            if act.get("tool") != "write_file":
+                continue
+            path = act.get("path", "")
+            here = repo_dir / path
+            if not here.is_file():
+                return False
+            wanted = _idents(act.get("content", ""))
+            seed = SEEDS / self.repo / path
+            before = _idents(seed.read_text(encoding="utf-8")) if seed.is_file() else set()
+            new_ones = wanted - before
+            if not new_ones:
+                continue                     # nothing distinguishing to look for
+            have = _idents(here.read_text(encoding="utf-8", errors="replace"))
+            if not (new_ones & have):
+                return False
+        return True
+
+
+def _idents(text: str) -> set[str]:
+    """Words long enough to be a name rather than punctuation or a keyword."""
+    return {w for w in re.findall(r"[A-Za-z_][A-Za-z0-9_]{3,}", text or "")}
 
 
 # ---------- clinic: a schema change needs its migration -----------------------

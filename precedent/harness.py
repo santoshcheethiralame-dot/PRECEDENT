@@ -48,8 +48,28 @@ class Result:
     commands: list[str] = field(default_factory=list)
 
 
+class Escaped(Exception):
+    """The agent named a path outside the repository it was given."""
+
+
+def _inside(repo: Path, path: str) -> Path:
+    """Resolve a path the MODEL chose, and refuse anything outside the repo.
+
+    `repo / path` is not a containment check. Python replaces the base when the
+    right-hand side is absolute, and `..` walks out - so one bad path from the
+    model writes wherever it likes. It has: a live agent wrote `phone_verified`
+    into seeds/clinic, the pristine corpus every benchmark run restores from,
+    which quietly changes what every future run measures.
+    """
+    repo = Path(repo).resolve()
+    target = (repo / path).resolve()
+    if target != repo and repo not in target.parents:
+        raise Escaped(path)
+    return target
+
+
 def _apply(repo: Path, path: str, content: str) -> None:
-    p = repo / path
+    p = _inside(repo, path)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8")
 
@@ -112,11 +132,24 @@ def run(repo: Path, task: str, led: Ledger, arm: str = "C", oracle: str = "pytho
                 for p in repo.rglob("*") if p.is_file() and ".precedent" not in p.parts
                 and "__pycache__" not in p.parts))
         elif tool == "read_file":
-            f = repo / action.get("path", "")
-            out = f.read_text(encoding="utf-8", errors="replace") if f.is_file() else "no such file"
+            try:
+                f = _inside(repo, action.get("path", ""))
+            except Escaped as e:
+                out = f"{e} is outside this repository"
+            else:
+                out = (f.read_text(encoding="utf-8", errors="replace")
+                       if f.is_file() else "no such file")
         elif tool == "write_file":
             path, content = action.get("path", ""), action.get("content", "")
-            _apply(repo, path, content)
+            try:
+                _apply(repo, path, content)
+            except Escaped as e:
+                # Told, not silently dropped: the model can correct itself, and
+                # the step is on the record rather than looking like a write.
+                out = f"refused: {e} is outside this repository"
+                res.steps.append(Step(action, out))
+                history.append(out)
+                continue
             res.edits[path] = content
             watch.note_write(path, content)
             out = f"wrote {path}"

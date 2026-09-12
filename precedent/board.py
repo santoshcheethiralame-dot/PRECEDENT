@@ -43,6 +43,17 @@ def dump(ledger: Path | None = None) -> dict:
         led.close()
     (WEB / "data.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
 
+    # A live three-arm run, if one has been done. It is kept separate from
+    # report.json on purpose: one is a synthetic 300-run benchmark and the
+    # other is a real model, and averaging them would be a lie.
+    live = ROOT / "bench" / "live3.json"
+    if live.is_file():
+        shutil.copyfile(live, WEB / "live.json")
+
+    curve = ROOT / "bench" / "compliance.json"
+    if curve.is_file():
+        shutil.copyfile(curve, WEB / "compliance.json")
+
     report = ROOT / "bench" / "report.json"
     if report.is_file():
         # rows are the bulk and the tape needs only the ordered outcomes
@@ -59,10 +70,48 @@ def dump(ledger: Path | None = None) -> dict:
     return data
 
 
+# What the office is, and what each page needs to be honest. A page with no
+# data still renders - it says what is missing instead of drawing nothing -
+# but the person serving it should be told before a judge is.
+PAGES = [
+    ("desk.html",      "the desk: live, or the recorded session"),
+    ("cabinet.html",   "the docket, and every case file in it"),
+    ("chart.html",     "the evidence: does it help, and where does it hurt"),
+    ("tape.html",      "three hundred runs, replayed"),
+    ("overruled.html", "how a rule loses its authority"),
+]
+
+NEEDS = [
+    ("data.json",       "python -m precedent dump"),
+    ("report.json",     "python -m precedent bench --arms A,C --seeds 1,2,3,4,5"),
+    ("compliance.json", "python -m precedent bench --compliance"),
+    ("replay.json",     "python -m precedent replay"),
+]
+
+# Not required - the pages say so when it is absent, because a live three-arm
+# run needs a model and most people cloning this will not have one wired up.
+OPTIONAL = [("live.json", "a live three-arm run (needs a model)")]
+
+
+def missing() -> list[tuple[str, str]]:
+    return [(f, cmd) for f, cmd in NEEDS if not (WEB / f).is_file()]
+
+
 def main(port: int = 8850, ledger: Path | None = None) -> int:
     d = dump(ledger)
-    print(f"  docket: {d['counts']['cases']} cases, {d['counts']['binding']} binding")
-    print(f"  board:  http://127.0.0.1:{port}/board.html")
+    c = d["counts"]
+    print(f"  docket: {c['cases']} cases, {c['binding']} binding, "
+          f"{c['persuasive']} advisory, {c['overruled']} overruled")
+    print()
+    for page, what in PAGES:
+        print(f"  http://127.0.0.1:{port}/{page:<15} {what}")
+    gaps = missing()
+    if gaps:
+        print()
+        print("  missing, so those pages will say so rather than show it:")
+        for f, cmd in gaps:
+            print(f"    {f:<17} {cmd}")
+    print()
     handler = partial(SimpleHTTPRequestHandler, directory=str(WEB))
     try:
         HTTPServer(("127.0.0.1", port), handler).serve_forever()

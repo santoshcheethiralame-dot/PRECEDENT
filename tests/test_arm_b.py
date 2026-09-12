@@ -56,12 +56,40 @@ def test_arm_b_prose_is_marked_as_optional(repo):
     assert "not enforced" in text.lower()
 
 
-def test_the_three_arms_are_actually_different(repo):
-    off = serve.advise(str(repo), "add a field", everything=False)["text"]
+def test_the_modes_are_actually_different(repo):
+    """What each opencode mode puts in front of the model.
+
+    This asserted that everything=False returns nothing, under the label "arm A
+    must receive nothing". The mapping was wrong: arm A is MODE=off, where the
+    plugin returns before it ever calls advise. everything=False is ENFORCE,
+    and enforce returning nothing meant the agent was stopped by rules it had
+    never been shown - the expensive way to learn something a sentence could
+    have said.
+    """
+    enforce = serve.advise(str(repo), "add a field", everything=False)["text"]
     advise = serve.advise(str(repo), "add a field", everything=True)["text"]
-    assert off == "", "arm A must receive nothing"
-    assert advise, "arm B must receive the rules"
-    assert off != advise
+
+    assert enforce, "enforce must name the rules that will stop the agent"
+    assert "STOP" in enforce, "and say plainly that they stop it"
+    assert advise, "advise must receive the rules"
+    assert "not enforced" in advise.lower(), "advise must read as optional"
+    assert enforce != advise
+
+
+def test_enforce_names_every_binding_rule_however_the_task_is_worded(repo):
+    """The gate does not consult a similarity score before firing, so the
+    briefing must not either. A bag of words scores "patient model" against
+    "models/*.py" at zero, which left every freshly taught repository with an
+    empty prompt."""
+    led = Ledger(ledger_path(repo))
+    binding = [h for h in led.holdings(repo=str(repo.resolve()))
+               if h["status"] == "binding"]
+    led.close()
+    assert binding, "fixture should establish at least one binding rule"
+    text = serve.advise(str(repo), "zzzz qqqq no shared words", everything=False)["text"]
+    for h in binding:
+        assert h["says"] in text, f"enforce never mentioned: {h['says']}"
+
 
 
 def test_everything_returns_rules_even_at_zero_similarity(repo):

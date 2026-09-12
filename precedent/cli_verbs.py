@@ -140,6 +140,38 @@ def cmd_hook(a) -> int:
     return 0
 
 
+MODES = {
+    "enforce": "binding precedent aborts the write. This is the point.",
+    "advise":  "past failures are injected as prose and nothing is blocked.",
+    "off":     "installed but inert.",
+}
+
+
+def cmd_opencode(a) -> int:
+    try:
+        out = verbs.opencode(Path(a.path), a.mode)
+    except FileNotFoundError as e:
+        print(f"  {e}")
+        return 1
+    print(f"  installed {out['plugin']}")
+    print(f"  configured {out['config']}")
+    print()
+    print("  the plugin decides nothing on its own. Start the service it asks:")
+    print("    precedent serve")
+    print()
+    if a.mode != "enforce":
+        print(f"  mode {a.mode}: {MODES[a.mode]}")
+        print(f"    PRECEDENT_MODE={a.mode} opencode")
+    else:
+        print("  then run opencode in this repository. A write that fires a")
+        print("  binding precedent is aborted before it lands, and the card")
+        print("  goes back to the model as the tool's error.")
+    print()
+    print("  `advise` is the same plugin with the throw removed - prose only,")
+    print("  which is what every other memory layer does. It is arm B.")
+    return 0
+
+
 def register(sub) -> None:
     i = sub.add_parser("init", help="learn this repo's habits from its own history")
     i.add_argument("--no-pack", action="store_true",
@@ -180,3 +212,8 @@ def register(sub) -> None:
     hk = sub.add_parser("hook", help="install the git pre-commit hook")
     hk.add_argument("path", nargs="?", default=".")
     hk.set_defaults(fn=cmd_hook)
+
+    oc = sub.add_parser("opencode", help="install the plugin that stops a write before it lands")
+    oc.add_argument("path", nargs="?", default=".")
+    oc.add_argument("--mode", choices=sorted(MODES), default="enforce")
+    oc.set_defaults(fn=cmd_opencode)

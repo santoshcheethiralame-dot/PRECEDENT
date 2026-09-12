@@ -134,6 +134,72 @@ def no_quadratic(ch: Change, p: dict) -> str | None:
     return None
 
 
+def forge_gate(ch: Change, p: dict) -> str | None:
+    """Dangerous constructs in the code this change ADDED, read off the syntax
+    tree instead of matched as text.
+
+    Borrowed from forge, the sibling project where an agent writes its own
+    tools. Before forge keeps a tool it asks whether the code is doing anything
+    it should not be allowed to do, and it asks by parsing rather than by
+    grepping - because `eval` inside a string, a comment, or a variable called
+    `evaluate` all match a regex and none of them are a call to eval.
+
+    We had two regexes doing this job badly. This uses forge's own list of
+    names, so if forge learns about a new one, so do we.
+
+    It reports only what this change introduced. A repository that already
+    contains an eval is not this change's fault, and a gate that blames you for
+    code you did not touch gets switched off within the hour.
+    """
+    import ast
+    import sys
+
+    from . import packs
+
+    home = packs.forge_home()
+    if not home:
+        return None                      # not installed: abstain, do not guess
+    if str(home) not in sys.path:
+        sys.path.insert(0, str(home))
+    try:
+        from forge import safety
+    except Exception:
+        return None
+
+    banned = set(getattr(safety, "BANNED_NAMES", ()))
+    allowed_dunders = set(getattr(safety, "ALLOWED_DUNDERS", ()))
+    # forge forbids `open` in a generated tool because a tool has no business
+    # touching the disk. Ordinary application code opens files all day, so that
+    # one is dropped rather than inherited - a borrowed rule still has to make
+    # sense where it is being applied.
+    banned -= {"open", "input"}
+    if not banned:
+        return None
+
+    for path in _hits(ch.touched, p.get("glob", "**/*.py")):
+        added = set(ch.added.get(path, []))
+        if not added:
+            continue
+        try:
+            tree = ast.parse(ch.text(path))
+        except SyntaxError:
+            continue
+        lines = ch.text(path).splitlines()
+        for node in ast.walk(tree):
+            n = getattr(node, "lineno", 0)
+            if not (1 <= n <= len(lines)) or lines[n - 1] not in added:
+                continue
+            if isinstance(node, ast.Name) and node.id in banned:
+                return f"{path}:{n} calls {node.id}()"
+            if (isinstance(node, ast.Attribute) and node.attr.startswith("__")
+                    and node.attr.endswith("__") and node.attr not in allowed_dunders):
+                return f"{path}:{n} reaches into {node.attr}"
+    return None
+
+
+SLEEPER_DEADLINE = 4.0
+
+
 def sleeper_gate(ch: Change, p: dict) -> str | None:
     """Borrow a sibling tool's judgement instead of reimplementing it.
 
@@ -157,9 +223,18 @@ def sleeper_gate(ch: Change, p: dict) -> str | None:
 
     from . import packs
     home = packs.sleeper_home()
+    # A gate sits in front of a write, so it has to answer in the time a person
+    # will wait. This one starts another Python process, and with four sleeper
+    # rules installed a single change took forty seconds to judge - long enough
+    # that the demo timed out and an agent would simply stall. Abstaining is
+    # already what this check does when it cannot answer; being slow is just
+    # another way of not answering.
     cmd = f"python -m sleeper review {' '.join(files[:20])} --json"
-    r = (shell.run_env(cmd, ch.repo, {"PYTHONPATH": str(home)}) if home
-         else shell.run(cmd, ch.repo))
+    budget = float(p.get("timeout", SLEEPER_DEADLINE))
+    r = (shell.run_env(cmd, ch.repo, {"PYTHONPATH": str(home)}, timeout=budget) if home
+         else shell.run(cmd, ch.repo, timeout=budget))
+    if r.returncode == 124:
+        return None
     if r.returncode not in (0, 1) or not (r.stdout or "").strip().startswith("{"):
         return None                      # not installed, or could not answer
     try:
@@ -224,6 +299,7 @@ TEMPLATES: dict[str, Callable[[Change, dict], str | None]] = {
     "blast_radius": blast_radius,
     "no_quadratic": no_quadratic,
     "sleeper_gate": sleeper_gate,
+    "forge_gate": forge_gate,
     "must_appear": must_appear,
     "regression_test": regression_test,
     "must_run": must_run,
@@ -238,6 +314,7 @@ REQUIRED_PARAMS = {
     "blast_radius": (),
     "no_quadratic": (),
     "sleeper_gate": ("gate",),
+    "forge_gate": (),
     "must_appear": ("regex", "glob"),
     "regression_test": ("path",),
     "must_run": ("glob", "cmd"),
@@ -255,6 +332,7 @@ def render(template: str, p: dict) -> str:
         "blast_radius": lambda: "blast_radius( callers must be updated )",
         "no_quadratic": lambda: f"no_quadratic( {p.get('glob', '**/*.py')} )",
         "sleeper_gate": lambda: f"sleeper_gate( {p.get('gate')} )",
+        "forge_gate": lambda: f"forge_gate( {p.get('glob', '**/*.py')} : ast )",
         "must_appear": lambda: f"must_appear( /{p.get('regex')}/ in {p.get('glob')} )",
         "regression_test": lambda: f"regression_test( {p.get('path')} )",
         "must_run": lambda: f"must_run( {p.get('glob')} : {p.get('cmd')} )",

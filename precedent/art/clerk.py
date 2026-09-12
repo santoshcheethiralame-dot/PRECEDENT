@@ -68,6 +68,8 @@ P = {
     # --- signal -------------------------------------------------------------
     "G": (0x5F, 0xC1, 0x8A, 255),     # phosphor / cleared
     "A": (0xF0, 0xB4, 0x4E, 255),     # amber / advisory
+    "A1": (0xF7, 0xC9, 0x77, 255),    # manila, lit
+    "A0": (0xCE, 0x93, 0x3B, 255),    # manila, shaded
     "R": (0xE0, 0x6B, 0x63, 255),     # coral / halt
     "r": (0xC4, 0x4E, 0x48, 255),     # coral, shaded
 
@@ -217,6 +219,8 @@ FONT = {
     "*": ("101", "010", "111", "010", "101"), "L": ("100", "100", "100", "100", "111"),
     "E": ("111", "100", "111", "100", "111"), "D": ("110", "101", "101", "101", "110"),
     "F": ("111", "100", "111", "100", "100"), "I": ("111", "010", "010", "010", "111"),
+    "A": ("111", "101", "111", "101", "101"), "H": ("101", "101", "111", "101", "101"),
+    "T": ("111", "010", "010", "010", "010"),
 }
 
 
@@ -465,15 +469,15 @@ FRAMES = [
     # reading: a change arrived and the rules are sitting.
     ("reading",  ".",     "A", "mid",  {"lamp": True}),
     ("reading",  "..",    "A", "mid",  {"lamp": True, "scan": True}),
-    ("reading",  "19",    "A", "mid",  {"lamp": True, "bead": True}),
-    ("reading",  "19",    "A", "mid",  {"lamp": True, "scan": True}),
+    ("reading",  "...",   "A", "mid",  {"lamp": True, "bead": True}),
+    ("reading",  "..",    "A", "mid",  {"lamp": True, "scan": True}),
 
     # halt: raise, arc, land, hold. It does not loop.
-    ("halt",     "No 14", "R", "up",     {"lamp": True, "stamp": True}),
-    ("halt",     "No 14", "R", "mid",    {"lamp": True, "stamp": True}),
-    ("halt",     "No 14", "R", "strike", {"lamp": True, "stamp": True, "impact": True,
+    ("halt",     "HALT", "R", "up",     {"lamp": True, "stamp": True}),
+    ("halt",     "HALT", "R", "mid",    {"lamp": True, "stamp": True}),
+    ("halt",     "HALT", "R", "strike", {"lamp": True, "stamp": True, "impact": True,
                                           "bob": -1}),
-    ("halt",     "No 14", "R", "strike", {"lamp": True, "stamp": True}),
+    ("halt",     "HALT", "R", "strike", {"lamp": True, "stamp": True}),
 
     # cleared: a small hop, then the card is ticked.
     ("cleared",  "OK",    "G", "down", {"lamp": True}),

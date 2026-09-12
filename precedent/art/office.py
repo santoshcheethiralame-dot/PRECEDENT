@@ -263,21 +263,30 @@ def lamp(cv: Canvas):
     cv.shadow(5, 47, 24, 47, "W2")
 
 
-@piece("papers", 34, 21)
+@piece("papers", 30, 11)
 def papers(cv: Canvas):
-    for (dx, dy) in ((0, 5), (2, 2), (4, 0)):
-        cv.box(dx, dy, dx + 28, dy + 15, "P1", None, "P2")
-    for y in (4, 7, 10, 13):
-        cv.hline(9, 30, y, "P3")
+    """A short stack seen edge on. It is the signal that a change landed, so
+    it has to read at a glance and it has to sit IN the tray - the earlier
+    version was as tall as the tray itself and looked glued to the front of
+    it rather than filed in it."""
+    for (dx, dy) in ((0, 4), (2, 2), (4, 0)):
+        cv.box(dx, dy, dx + 25, dy + 6, "P1", None, "P2")
+    cv.hline(8, 27, 2, "P3")
+    cv.hline(8, 25, 4, "P3")
 
 
 @piece("intray", 42, 21)
 def intray(cv: Canvas):
+    """Two tiers of wire. The upper one is where the paper goes, so it is a
+    frame and not a solid: a stack drawn behind a filled box can only ever
+    look stuck to it."""
     cv.box(0, 8, 41, 20, "M1", "M3", "M2")
+    cv.hline(1, 40, 9, "M3")                       # the rim, catching light
     cv.dither(2, 16, 39, 19, "M2")
     cv.vline(0, 0, 8, "K")
     cv.vline(41, 0, 8, "K")
     cv.hline(0, 41, 0, "K")
+    cv.hline(1, 40, 1, "M2")
 
 
 @piece("outtray", 42, 20)
@@ -332,31 +341,31 @@ def bin_(cv: Canvas):
     cv.shadow(3, 27, 20, 27, "F2")
 
 
-@piece("rug", 156, 38)
+@piece("rug", 190, 40)
 def rug(cv: Canvas):
     """A woven runner. The first two were a flat slab and then a slab with
     white teeth for fringe; this one has a border, a repeating diamond, and a
     fringe in the rug's own colour rather than bare paper."""
-    cv.box(7, 0, 148, 37, "b1", None, "r")
-    cv.frame(11, 4, 144, 33, "b4")          # outer band
-    cv.frame(13, 6, 142, 31, "r")
-    cv.rect(16, 9, 139, 28, "b1")           # field
-    cv.grain(17, 10, 138, 27, "r", step=4)
+    cv.box(7, 0, 182, 39, "b1", None, "r")
+    cv.frame(11, 4, 178, 35, "b4")          # outer band
+    cv.frame(13, 6, 176, 33, "r")
+    cv.rect(16, 9, 173, 30, "b1")           # field
+    cv.grain(17, 10, 172, 29, "r", step=4)
 
-    for cx in range(28, 136, 22):           # diamonds down the field
+    for cx in range(30, 170, 23):           # diamonds down the field
         for (dx, dy) in ((0, -5), (0, 5), (-5, 0), (5, 0)):
-            cv.set(cx + dx, 18 + dy, "b4")
+            cv.set(cx + dx, 19 + dy, "b4")
         for d in range(1, 5):
-            cv.set(cx - d, 18 - (5 - d), "b4")
-            cv.set(cx + d, 18 - (5 - d), "b4")
-            cv.set(cx - d, 18 + (5 - d), "b4")
-            cv.set(cx + d, 18 + (5 - d), "b4")
-        cv.set(cx, 18, "b4")
+            cv.set(cx - d, 19 - (5 - d), "b4")
+            cv.set(cx + d, 19 - (5 - d), "b4")
+            cv.set(cx - d, 19 + (5 - d), "b4")
+            cv.set(cx + d, 19 + (5 - d), "b4")
+        cv.set(cx, 19, "b4")
 
-    for y in range(3, 36, 4):               # short fringe, in the rug's tone
+    for y in range(3, 38, 4):               # short fringe, in the rug's tone
         cv.hline(3, 6, y, "r")
-        cv.hline(149, 152, y, "r")
-    cv.shadow(9, 37, 146, 37, "F2")
+        cv.hline(183, 186, y, "r")
+    cv.shadow(9, 39, 180, 39, "F2")
 
 
 @piece("bigplant", 44, 58)
@@ -396,6 +405,154 @@ def stamppad(cv: Canvas):
     cv.box(0, 5, 27, 13, "W4", "W2", "W4")
     cv.box(3, 0, 24, 6, "W2", "W1", "W4")
     cv.rect(5, 2, 22, 4, "R")
+
+
+# ---- the docket: a cabinet you can open ---------------------------------
+#
+# The geometry is fixed here rather than in the page. A closed front is 48
+# rows on a 50-row pitch; an open drawer is 20 rows of opening with a taller
+# front thrown forward below it, anchored at the same row as the closed one.
+
+@piece("cab_body", 132, 232)
+def cab_body(cv: Canvas):
+    """The carcass: folded sheet metal, and detailed as such. A lipped top
+    that throws a line, a return around the drawer bay, seams down the
+    corners, a lock in the top rail, and a kick plate the feet stand under."""
+    cv.box(0, 0, 131, 221, "M1", "M3", "M2")
+    cv.vline(2, 10, 218, "M3")                     # the left face, in the light
+    cv.vline(129, 10, 218, "M2")                   # the right face, turned away
+
+    cv.box(0, 0, 131, 8, "M1", "M3", "M2")         # the top, overhanging
+    cv.hline(2, 129, 9, "W4")                      # the line it throws
+    cv.dither(3, 10, 128, 11, "W4")
+
+    cv.box(4, 11, 127, 219, "M2", "M1", "M2")      # the return around the bay
+    cv.rect(8, 14, 123, 215, "W4")                 # the bay, unlit
+    cv.dither(9, 15, 122, 38, "M2")
+
+    cv.box(112, 1, 122, 7, "c", "H", "C")          # lock barrel, in the top rail
+    cv.rect(116, 3, 118, 5, "W4")
+
+    cv.box(4, 216, 127, 221, "M2", "M1", "W4")     # kick plate
+    for x in (12, 107):                            # feet
+        cv.box(x, 222, x + 13, 231, "B", "W2", "W4")
+    cv.shadow(8, 231, 123, 231, "F2")
+
+
+def _front(cv: Canvas, y: int, w: int, tall: int):
+    """The face of a drawer, open or closed. Same pressing either way: a
+    chrome card holder the page writes into, and a finger pull sunk into a
+    cavity that is dark where the light cannot reach it."""
+    x1, mid = w - 1, w // 2
+    cv.box(0, y, x1, y + tall - 1, "M1", "M3", "M2")
+    cv.hline(2, x1 - 2, y + 1, "M3")               # the pressed top bevel
+    cv.dither(2, y + tall - 8, x1 - 2, y + tall - 3, "M2")
+
+    cv.box(mid - 24, y + 3, mid + 23, y + 19, "c", "H", "C")     # the holder
+    cv.box(mid - 21, y + 5, mid + 20, y + 17, "P1", None, "P2")  # its card
+    cv.hline(mid - 19, mid + 18, y + 16, "P3")
+
+    cv.box(mid - 27, y + 25, mid + 26, y + 39, "M2", "M1", "W4")  # the cavity
+    cv.rect(mid - 25, y + 27, mid + 24, y + 29, "W4")             # its unlit top
+    cv.box(mid - 23, y + 30, mid + 22, y + 36, "C", "H", "c")     # the pull
+    cv.hline(mid - 21, mid + 20, y + 31, "H")
+    for x in (6, w - 7):                                          # fixing screws
+        cv.box(x - 1, y + 23, x + 1, y + 25, "c", "H", "C")
+
+
+@piece("cab_drawer", 118, 48)
+def cab_drawer(cv: Canvas):
+    """A closed drawer front, flush with the case."""
+    _front(cv, 0, 118, 48)
+
+
+@piece("cab_open", 132, 74)
+def cab_open(cv: Canvas):
+    """A drawer pulled out: the opening above, the front thrown forward below
+    it. The front is wider than a closed one - nearer to you is bigger."""
+    cv.rect(5, 0, 126, 19, "W4")                   # the opening
+    cv.frame(5, 0, 126, 19, "K")
+    cv.rect(9, 1, 122, 5, "M2")                    # the back wall of the drawer
+    cv.hline(9, 122, 1, "M1")
+    cv.dither(9, 5, 122, 9, "W4")
+    cv.vline(7, 1, 18, "M2")                       # near side, catching light
+    cv.vline(124, 1, 18, "W4")                     # far side, turned away
+
+    _front(cv, 20, 132, 54)                        # the front, thrown forward
+    cv.shadow(2, 73, 129, 73, "F2")
+
+
+def _file(cv: Canvas, tx: int, paper: tuple = ()):
+    """One file in a drawer, and it has to read as a folder in twenty rows.
+    The silhouette does that work, not the colour: a low band of folder with
+    a wide tab stepping up out of it, one shape with the seam between them
+    rubbed out. Drawn as two boxes it reads as a brick sitting on a brick,
+    which is how the first attempt failed.
+
+    Only some files show paper, and none of them show much. A white rectangle
+    beside every tab stops reading as the contents of the folder and starts
+    reading as a card propped against it."""
+    if paper:                                              # sheets, edge on
+        px, py = paper
+        cv.rect(px, py, px + 11, 13, "P1")
+        cv.vline(px + 11, py + 1, 13, "P2")
+        cv.hline(px, px + 11, py, "k")
+        for y in range(py + 3, 13, 3):
+            cv.hline(px + 1, px + 10, y, "P3")
+
+    cv.rect(1, 13, 24, 18, "A")                            # the folder, filled
+    cv.rect(tx + 1, 8, tx + 12, 12, "A")                   # and its tab
+    cv.frame(0, 12, 25, 19, "k")
+    cv.frame(tx, 7, tx + 13, 12, "k")
+    cv.hline(tx + 1, tx + 12, 12, "A")                     # rub out the seam
+
+    cv.hline(1, 24, 13, "A1")                              # the fold, in light
+    cv.vline(1, 13, 18, "A1")
+    cv.hline(2, 24, 18, "A0")                              # and the far edges
+    cv.vline(24, 14, 18, "A0")
+    cv.hline(tx + 1, tx + 12, 8, "A1")
+    cv.vline(tx + 1, 8, 11, "A1")
+    cv.vline(tx + 12, 9, 11, "A0")
+
+
+# The tab is cut at the left corner of every folder, never in the middle and
+# never alternating: a bump in the centre reads as a lip or a handle, and a
+# row that swaps sides reads as a mistake rather than as a set of files.
+@piece("file_l", 26, 20)
+def file_l(cv: Canvas):
+    _file(cv, 0)
+
+
+@piece("file_m", 26, 20)
+def file_m(cv: Canvas):
+    _file(cv, 0, paper=(13, 5))
+
+
+@piece("file_r", 26, 20)
+def file_r(cv: Canvas):
+    _file(cv, 0)
+
+
+@piece("printer", 76, 42)
+def printer(cv: Canvas):
+    """A dot-matrix printer with the run feeding out of the front. It is here
+    to say what the strip below it is and nothing else - the strip carries
+    three hundred outcomes and has to stay legible, so it is not a sprite."""
+    cv.box(4, 0, 71, 7, "c", "C", "c")             # the lid
+    cv.dither(7, 2, 68, 5, "C")
+    cv.box(0, 6, 75, 32, "C", "H", "c")            # the case
+    for y in (12, 15, 18):                         # vents
+        cv.hline(7, 31, y, "c")
+    cv.box(44, 10, 70, 20, "S", "s", "S")          # the window over the ribbon
+    cv.rect(46, 12, 68, 18, "s")
+    cv.hline(47, 67, 14, "S")
+    cv.box(7, 23, 35, 29, "c", "C", "c")           # control panel
+    cv.rect(10, 25, 12, 27, "G")                   # running
+    cv.rect(15, 25, 17, 27, "A")                   # paper
+    cv.rect(3, 33, 72, 35, "K")                    # the slot, in shadow
+    cv.box(9, 35, 66, 40, "P1", None, "P2")        # paper on its way out
+    cv.hline(11, 64, 37, "P3")
+    cv.shadow(2, 41, 73, 41, "F2")
 
 
 # ---- sheet ---------------------------------------------------------------

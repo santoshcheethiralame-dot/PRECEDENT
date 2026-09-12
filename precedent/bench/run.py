@@ -69,10 +69,20 @@ def run_arm(arm: str, seed: int, p_recall: float, tasks, p_comply: float = 1.0,
             record.file_free_signals(led, res.run_id, str(repo.resolve()),
                                      res.watch, Change.since(repo, res.before, res.commands))
 
+        # A pristine repository passes its own oracle, so "did nothing" and
+        # "did it correctly" are the same verdict unless we ask this.
+        attempted = task.attempted(repo)
+        # A run in which the model was never reachable is not evidence about
+        # anything. Rate limiting produced ninety of them, all scored as passes.
+        vacuous = live and any(
+            (st.action or {}).get("tool") == "error" and "no model" in str(st.result)
+            for st in res.steps)
         rows.append({
             "p_comply": p_comply,
             "arm": arm, "seed": seed, "order": n, "task": task.id,
-                     "repo": task.repo, "trap": task.trap or "", "passed": res.passed,
+                     "repo": task.repo, "trap": task.trap or "",
+                     "passed": bool(res.passed and attempted and not vacuous),
+                     "attempted": attempted, "vacuous": vacuous,
                      "blocked": res.blocked, "fired": sorted(set(res.fired)),
                      "skipped": len(skipped)})
     counts = led.counts(None)
@@ -103,6 +113,8 @@ def metrics(rows: list[dict]) -> dict:
 
         out[arm] = {
             "runs": len(a),
+            # If this is low the run says more about the model than the gate.
+            "attempt_rate": round(sum(r.get("attempted", True) for r in a) / len(a), 4),
             "pass_rate": round(sum(r["passed"] for r in a) / len(a), 4),
             "trap_pass_rate": round(sum(r["passed"] for r in traps) / len(traps), 4) if traps else None,
             "repeat_failure_rate": round(repeat_failed / repeat_total, 4) if repeat_total else None,
@@ -170,6 +182,17 @@ def main(arms=("A", "C"), seeds=(1, 2, 3, 4, 5), p_recall: float = 0.5,
         for seed in seeds:
             rows += run_arm(arm, seed, p_recall, tasks, live=live)
             print(f"  {arm}/{seed}  done", flush=True)
+
+    dead = sum(r.get("vacuous", False) for r in rows)
+    if dead:
+        share = dead / len(rows)
+        print(f"  {dead} of {len(rows)} runs never reached the model.")
+        if share > 0.1:
+            raise RuntimeError(
+                f"refusing to write a report: {share:.0%} of runs never reached "
+                "the model, so the numbers would be about a rate limit rather "
+                "than about the gate. Wait for the quota, or point "
+                "PRECEDENT_BASE_URL at something that answers.")
 
     report = {
         "generated": time.strftime("%Y-%m-%d %H:%M"),
