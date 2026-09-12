@@ -506,17 +506,20 @@ python -m pytest -q
 
 ---
 
-## Where this went next
+## Where this is going
 
-The engine here is domain-agnostic: a ledger, a set of typed check shapes, and
-the empanelment rule that decides which of them may refuse anything. Only the
-templates, the harness and the demo know they are looking at a code repository.
+This repository is the working prototype and the reference. The project ships
+under a new name, in a new repository, rebuilt rather than copied:
 
-[VOIR DIRE](https://github.com/mounika-200622/VOIR-DIRE) is the same engine
-pointed at municipal complaint closures — a ward marks a pothole resolved, and
-the gate refuses the closure when the evidence for it does not exist. Same
-ledger, same empanelment, same public receipts.
+**[VOIR DIRE](https://github.com/mounika-200622/VOIR-DIRE)** — the same idea,
+written again from the ground up with everything this build taught us folded in
+from the first commit rather than bolted on at the end. Path containment,
+subprocess deadlines, the attempted flag, and unfiltered recall are all in the
+foundations there because they were each discovered here the expensive way.
 
-Read this repo when you need the reasoning behind a design decision over there:
-the benchmark harness, the arm A/B/C structure, the opencode plugin, or any of
-the failure modes that shaped both.
+The name is the argument. Voir dire is the examination a juror sits through
+before being allowed to judge anything, which is exactly what a rule here has
+to pass before it may block a commit.
+
+Read this repository when you need the reasoning behind a decision over there.
+The commit messages carry it.
